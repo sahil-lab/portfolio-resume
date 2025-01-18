@@ -1,0 +1,31 @@
+/* src/PortfolioPage.css */
+
+.portfolio-container {
+    background: rgba(255, 255, 255, 0.8);
+    padding: 20px;
+    border-radius: 10px;
+    max-width: 300px;
+    font-family: Arial, sans-serif;
+    color: #333;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  }
+  
+  .portfolio-name {
+    margin-bottom: 15px;
+    font-size: 24px;
+    text-align: center;
+  }
+  
+  .portfolio-link {
+    display: block;
+    margin: 10px 0;
+    color: #4060ff;
+    text-decoration: none;
+    font-size: 18px;
+    transition: color 0.3s ease;
+  }
+  
+  .portfolio-link:hover {
+    color: #2040a0;
+  }
+  
