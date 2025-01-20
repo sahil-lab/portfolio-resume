@@ -7,6 +7,7 @@ import {
   useGLTF,
   PointerLockControls,
   useCursor,
+  PositionalAudio, // Import PositionalAudio
 } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import React, {
@@ -27,6 +28,10 @@ import resumeLogo from '../assets/resume.png';
 import whatsappLogo from '../assets/whatsapp.png';
 import { CustomOutlines } from "../App"; 
 
+// Import the music files
+import musicGLB from '../assets/music.glb'; // Ensure the path is correct
+import musicFile from '../assets/music.mp3'; // Ensure the path is correct
+
 // Import a custom font (ensure the font file is in the specified path)
 import customFont from '../assets/fonts/Roboto-Bold.ttf'; 
 
@@ -34,17 +39,27 @@ import customFont from '../assets/fonts/Roboto-Bold.ttf';
 import spaceshipModel from '../assets/spaceship.glb'; // Adjust the path as necessary
 
 // 18. LogoPlanet Component for clickable logo-bearing planets
-const LogoPlanet = ({ logo, position, size, link, emissiveColor, label }) => {
+const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download }) => {
   // Load the logo texture
   const texture = useTexture(logo);
 
   // Reference for the mesh
   const meshRef = useRef();
 
-  // Handle click event to open the link
+  // Handle click event to open the link or download the resume
   const handleClick = (event) => {
     event.stopPropagation(); // Prevent event from bubbling up
-    window.open(link, "_blank"); // Open the link in a new tab
+    if (download) {
+      // Create an anchor element to trigger the download
+      const linkElement = document.createElement('a');
+      linkElement.href = link; // Direct URL to the resume PDF
+      linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
+      document.body.appendChild(linkElement);
+      linkElement.click();
+      linkElement.remove();
+    } else {
+      window.open(link, "_blank"); // Open the link in a new tab
+    }
   };
 
   // Hover state for visual feedback
@@ -139,6 +154,115 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label }) => {
   );
 };
 
+// MusicPlanet Component for playing music on interaction
+const MusicPlanet = ({ position, size, emissiveColor, label }) => {
+  // Load the music.glb model
+  const { scene } = useGLTF(musicGLB);
+
+  // Reference to the mesh
+  const meshRef = useRef();
+
+  // Reference to the audio
+  const audioRef = useRef();
+
+  // Hover state for visual feedback
+  const [hovered, setHovered] = useState(false);
+
+  // State to track if music is playing
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  // Handle click event to toggle music playback
+  const handleClick = (event) => {
+    event.stopPropagation(); // Prevent event from bubbling up
+    if (isPlaying) {
+      audioRef.current.stop();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play();
+      setIsPlaying(true);
+    }
+  };
+
+  // Change cursor on hover
+  useEffect(() => {
+    if (hovered) {
+      document.body.style.cursor = "pointer";
+    } else {
+      document.body.style.cursor = "default";
+    }
+  }, [hovered]);
+
+  // Rotate the music planet for animation
+  useFrame(() => {
+    if (meshRef.current) {
+      meshRef.current.rotation.y += 0.001; // Adjust rotation speed as desired
+    }
+  });
+
+  return (
+    <mesh
+      ref={meshRef}
+      position={position}
+      name="MusicPlanet" // Assign a unique name for easy reference
+      onClick={handleClick}
+      onPointerOver={() => setHovered(true)}
+      onPointerOut={() => setHovered(false)}
+      scale={hovered ? size * 60 : size * 20} // Scale by 100x, enlarge by additional 10% on hover
+      castShadow
+      receiveShadow
+    >
+      {/* Render the music.glb model */}
+      <primitive object={scene} />
+
+      {/* Add white outlines */}
+      <CustomOutlines
+        color="white"
+        opacity={hovered ? 1 : 0.7}
+        transparent={true}
+        thickness={0.02}
+      />
+      
+      {/* Label Text */}
+      <Text
+        position={[0, size * 100 + 4, 0]} // Position above the model, adjusted for scale
+        font={customFont}
+        fontSize={200} // Adjust font size proportionally
+        color="white"
+        anchorX="center"
+        anchorY="bottom"
+        outlineWidth={0.1}
+        outlineColor="black"
+        material-toneMapped={false}
+        emissive="cyan"
+        emissiveIntensity={0.5}
+        opacity={hovered ? 1 : 0}
+        transparent={true}
+        onBeforeCompile={(shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            `#include <alphamap_fragment>`,
+            `
+              #include <alphamap_fragment>
+              diffuseColor.a *= opacity;
+            `
+          );
+        }}
+      >
+        {label}
+      </Text>
+
+      {/* Positional Audio */}
+      <PositionalAudio
+        ref={audioRef}
+        url={musicFile}
+        loop
+        distance={5000} // Increased distance to accommodate larger scale
+        volume={1}
+        autoplay={false} // Do not autoplay
+      />
+    </mesh>
+  );
+};
+
 // Utility function to generate random positions with minimum distance and exclusion zones
 const generateRandomPositions = (count, minDistance, range, exclusionZones = []) => {
   const positions = [];
@@ -168,7 +292,7 @@ const generateRandomPositions = (count, minDistance, range, exclusionZones = [])
   return positions;
 };
 
-// 19. LogoPlanets Component to render all LogoPlanets
+// 19. LogoPlanets Component to render all LogoPlanets and MusicPlanet
 const LogoPlanets = () => {
   // Define the logos and their corresponding links and labels
   const logos = [
@@ -177,7 +301,12 @@ const LogoPlanets = () => {
     { logo: gmailLogo, link: "mailto:sahil.aps2k12@gmail.com", label: "Gmail" },
     { logo: linkedinLogo, link: "https://www.linkedin.com/in/sahil-upadhyay-2921b5127/", label: "LinkedIn" },
     { logo: mediumLogo, link: "https://medium.com/@sahilupadhyay.work", label: "Medium" },
-    { logo: resumeLogo, link: "/resume.pdf", label: "Resume" }, // Assuming resume is hosted
+    { 
+      logo: resumeLogo, 
+      link: "https://raw.githubusercontent.com/sahil-lab/portfolio-resume/main/src/assets/resume.pdf", // Updated raw GitHub link
+      label: "Resume",
+      download: true // Flag indicating download action
+    },
   ];
 
   // Define exclusion zones around main planets to prevent overlap
@@ -232,9 +361,19 @@ const LogoPlanets = () => {
             link={item.link}
             emissiveColor={emissiveColor}
             label={item.label} // Pass the label prop
+            download={item.download} // Pass the download flag
           />
         );
       })}
+
+      {/* Add the MusicPlanet component */}
+      <MusicPlanet
+        position={[0, -100, 0]} // Adjust position as needed
+        size={5} // Original size before scaling
+        emissiveColor={new THREE.Color(0xFF69B4)} // Example emissive color (Hot Pink)
+        label="Music"
+      />
+
       {/* Add the Spaceship component */}
       <Suspense fallback={null}>
         <SpaceshipModel logoPositions={positions} logos={logos} />
@@ -269,7 +408,9 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
   });
 
   // Collision flags to prevent multiple triggers
-  const collisionFlags = useRef(new Array(logos.length).fill(false));
+  // Initialize collision flags for logo planets + MusicPlanet
+  const totalCollisions = logoPositions.length + 1; // +1 for MusicPlanet
+  const collisionFlags = useRef(new Array(totalCollisions).fill(false));
 
   // Handle keydown and keyup events
   useEffect(() => {
@@ -290,9 +431,6 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
       window.removeEventListener('keyup', handleKeyUp);
     };
   }, []);
-
-  // Remove emissive properties to disable glowing effect
-  // (No longer traversing the scene to set emissive properties)
 
   // Update velocity based on keys
   useFrame(() => {
@@ -336,6 +474,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
     }
 
     // Collision detection with precise contact
+    // Iterate over logoPositions and MusicPlanet
     logoPositions.forEach((pos, index) => {
       const planetPosition = new THREE.Vector3(...pos);
       const spaceshipPosition = spaceshipRef.current.position.clone();
@@ -350,8 +489,18 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
 
       if (distance <= collisionDistance) {
         if (!collisionFlags.current[index]) {
-          // Trigger the link
-          window.open(logos[index].link, "_blank");
+          // Trigger the link or audio
+          if (logos[index].download) {
+            // Download the resume
+            const linkElement = document.createElement('a');
+            linkElement.href = logos[index].link; // Direct URL to the resume PDF
+            linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
+            document.body.appendChild(linkElement);
+            linkElement.click();
+            linkElement.remove();
+          } else {
+            window.open(logos[index].link, "_blank");
+          }
           // Set the flag to true to prevent multiple triggers
           collisionFlags.current[index] = true;
         }
@@ -362,6 +511,48 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         }
       }
     });
+
+    // Handle collision with MusicPlanet
+    const musicPlanetIndex = logoPositions.length; // Last index
+    const musicPlanetPosition = new THREE.Vector3(0, -100, 0); // Same as MusicPlanet's position
+    const spaceshipPosition = spaceshipRef.current.position.clone();
+
+    const spaceshipRadius = 0.5; // Same as above
+    const musicPlanetRadius = 5 * 100 / 2; // size=5 scaled by 100, so radius=250
+
+    const collisionDistanceMusic = spaceshipRadius + musicPlanetRadius; // 0.5 + 250 = 250.5
+
+    const distanceToMusicPlanet = spaceshipPosition.distanceTo(musicPlanetPosition);
+
+    if (distanceToMusicPlanet <= collisionDistanceMusic) {
+      if (!collisionFlags.current[musicPlanetIndex]) {
+        // Automatically play music if not already playing
+        const musicPlanet = threeScene.getObjectByName('MusicPlanet'); // Ensure MusicPlanet has this name
+        if (musicPlanet) {
+          const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
+          if (audio && !audio.isPlaying) {
+            audio.play();
+            setIsPlaying(true); // Update local state if necessary
+          }
+        }
+        // Set the flag to true to prevent multiple triggers
+        collisionFlags.current[musicPlanetIndex] = true;
+      }
+    } else {
+      if (collisionFlags.current[musicPlanetIndex]) {
+        // Optionally stop the music when no longer colliding
+        const musicPlanet = threeScene.getObjectByName('MusicPlanet');
+        if (musicPlanet) {
+          const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
+          if (audio && audio.isPlaying) {
+            audio.stop();
+            setIsPlaying(false); // Update local state if necessary
+          }
+        }
+        // Reset the flag when no longer colliding
+        collisionFlags.current[musicPlanetIndex] = false;
+      }
+    }
   });
 
   // Booster particles
@@ -443,5 +634,6 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
   );
 };
 
-// Preload the GLTF model for better performance
+// Preload the GLTF models for better performance
 useGLTF.preload(spaceshipModel);
+useGLTF.preload(musicGLB);
