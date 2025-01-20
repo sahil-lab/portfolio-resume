@@ -36,13 +36,27 @@ import {
 } from "./components/ShaderMaterials";
 import Spheres from "./components/Spheres";
 import Starfield from "./components/Starfield";
-
+import Popup from "./components/Popup";
 // Extend Three.js with custom materials
 extend({
   OutlinesMaterial,
   ProceduralSphereMaterial,
   EnhancedNebulaeMaterial
 });
+
+
+const popupMessages = [
+  "I hope you like the space you are in! Let's get in touch. Contact me at: 8559067075 / sahil.aps2k12@gmail.com",
+  "Have you tried pressing WASD for space travel?",
+  "Why don't you try clickin on the sun ?",
+  "Did you know? A teaspoon of a neutron star would weigh about 6 billion tons!",
+  "Fun Fact: There are more stars in the universe than grains of sand on all the beaches on Earth.",
+  "Did you know? Space is completely silent because there is no atmosphere to carry sound.",
+  "Fun Fact: A day on Venus is longer than a year on Venus!",
+  "Did you know? 99% of our solar system's mass is in the Sun.",
+  "Fun Fact: There are potentially more planets in the universe than grains of sand on Earth.",
+  // Add more facts or messages as desired
+];
 
 /* ----------------------------------------------------------------------------------
   1. CustomOutlines component for rendering outlines around objects
@@ -785,12 +799,40 @@ function BiggerUniverse({ starCount = 2000, maxRadius = 2000, orbitSpeed = 0.000
   );
 }
 
-/* ----------------------------------------------------------------------------------
-  Main App
----------------------------------------------------------------------------------- */
 export const App = () => {
   const wrapperRef = useRef(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+
+  // Popup state management
+  const [currentPopup, setCurrentPopup] = useState(null);
+  const popupIndexRef = useRef(0);
+  const popupTimerRef = useRef(null);
+
+  // Function to show the next popup
+  const showNextPopup = () => {
+    setCurrentPopup(popupMessages[popupIndexRef.current]);
+    popupIndexRef.current = (popupIndexRef.current + 1) % popupMessages.length;
+  };
+
+  // Set up interval to show popups every three minutes (180000 milliseconds)
+  useEffect(() => {
+    // Show the first popup after three minutes
+    popupTimerRef.current = setInterval(showNextPopup, 180000); // 3 minutes
+
+    // Optionally, show the first popup immediately
+    // showNextPopup();
+
+    return () => {
+      if (popupTimerRef.current) {
+        clearInterval(popupTimerRef.current);
+      }
+    };
+  }, []);
+
+  // Handler to close the popup
+  const handleClosePopup = () => {
+    setCurrentPopup(null);
+  };
 
   useEffect(() => {
     const updateDimensions = () => {
@@ -913,6 +955,9 @@ export const App = () => {
         {/* Logo Planets */}
         <LogoPlanets />
       </Canvas>
+
+      {/* Popup Component */}
+      {currentPopup && <Popup message={currentPopup} onClose={handleClosePopup} />}
 
       {/* Optional: Display Canvas Dimensions */}
       <div

@@ -3,11 +3,18 @@
 import {
   useTexture,
   Text,
-  Html
+  Html,
+  useGLTF,
+  PointerLockControls,
+  useCursor,
 } from "@react-three/drei";
-import { useFrame } from "@react-three/fiber";
+import { useFrame, useThree } from "@react-three/fiber";
 import React, {
-  useEffect, useMemo, useRef, useState
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
 } from "react";
 import * as THREE from "three";
 
@@ -22,6 +29,9 @@ import { CustomOutlines } from "../App";
 
 // Import a custom font (ensure the font file is in the specified path)
 import customFont from '../assets/fonts/Roboto-Bold.ttf'; 
+
+// Import the spaceship GLB model
+import spaceshipModel from '../assets/spaceship.glb'; // Adjust the path as necessary
 
 // 18. LogoPlanet Component for clickable logo-bearing planets
 const LogoPlanet = ({ logo, position, size, link, emissiveColor, label }) => {
@@ -225,8 +235,213 @@ const LogoPlanets = () => {
           />
         );
       })}
+      {/* Add the Spaceship component */}
+      <Suspense fallback={null}>
+        <SpaceshipModel logoPositions={positions} logos={logos} />
+      </Suspense>
     </group>
   );
 };
 
 export default LogoPlanets;
+
+// Updated Spaceship Component using spaceship.glb
+const SpaceshipModel = ({ logoPositions, logos }) => {
+  const { scene } = useGLTF(spaceshipModel);
+  const spaceshipRef = useRef();
+  const textRef = useRef();
+  const { camera, gl, scene: threeScene } = useThree();
+
+  // Movement state
+  const [velocity, setVelocity] = useState(new THREE.Vector3());
+  const acceleration = 0.2;
+  const deceleration = 0.95;
+  const maxSpeed = 5;
+
+  // Controls state
+  const [keys, setKeys] = useState({
+    w: false,
+    a: false,
+    s: false,
+    d: false,
+    ArrowUp: false,
+    ArrowDown: false,
+  });
+
+  // Collision flags to prevent multiple triggers
+  const collisionFlags = useRef(new Array(logos.length).fill(false));
+
+  // Handle keydown and keyup events
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        setKeys((prev) => ({ ...prev, [e.key]: true }));
+      }
+    };
+    const handleKeyUp = (e) => {
+      if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+        setKeys((prev) => ({ ...prev, [e.key]: false }));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    window.addEventListener('keyup', handleKeyUp);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+    };
+  }, []);
+
+  // Remove emissive properties to disable glowing effect
+  // (No longer traversing the scene to set emissive properties)
+
+  // Update velocity based on keys
+  useFrame(() => {
+    let direction = new THREE.Vector3();
+
+    // WASD for X and Z movement
+    if (keys.w) direction.z -= 1; // Forward
+    if (keys.s) direction.z += 1; // Backward
+    if (keys.a) direction.x -= 1; // Left
+    if (keys.d) direction.x += 1; // Right
+
+    // Arrow Up/Down for Y movement
+    if (keys.ArrowUp) direction.y += 1; // Up
+    if (keys.ArrowDown) direction.y -= 1; // Down
+
+    if (direction.length() > 0) {
+      direction.normalize();
+      direction.multiplyScalar(acceleration);
+      setVelocity((prev) => {
+        const newVel = prev.clone().add(direction);
+        newVel.clampLength(0, maxSpeed);
+        return newVel;
+      });
+    } else {
+      // Apply deceleration when no keys are pressed
+      setVelocity((prev) => prev.clone().multiplyScalar(deceleration));
+    }
+
+    // Update spaceship position
+    if (spaceshipRef.current) {
+      spaceshipRef.current.position.add(velocity.clone());
+      spaceshipRef.current.rotation.y += velocity.x * 0.01; // Optional: Rotate based on movement
+      spaceshipRef.current.rotation.x += velocity.z * 0.01; // Optional: Rotate based on movement
+      spaceshipRef.current.rotation.z += velocity.y * 0.01; // Optional: Rotate based on Y movement
+    }
+
+    // Update "Let's Go" text position
+    if (textRef.current && spaceshipRef.current) {
+      textRef.current.position.copy(spaceshipRef.current.position);
+      textRef.current.position.y += 10; // Adjust as needed
+    }
+
+    // Collision detection with precise contact
+    logoPositions.forEach((pos, index) => {
+      const planetPosition = new THREE.Vector3(...pos);
+      const spaceshipPosition = spaceshipRef.current.position.clone();
+
+      // Define collision radii based on scales
+      const spaceshipRadius = 0.5; // Half of the original spaceship scale (1 / 2)
+      const planetRadius = 2.5;      // Half of the planet scale (5 / 2)
+
+      const collisionDistance = spaceshipRadius + planetRadius; // 3
+
+      const distance = spaceshipPosition.distanceTo(planetPosition);
+
+      if (distance <= collisionDistance) {
+        if (!collisionFlags.current[index]) {
+          // Trigger the link
+          window.open(logos[index].link, "_blank");
+          // Set the flag to true to prevent multiple triggers
+          collisionFlags.current[index] = true;
+        }
+      } else {
+        if (collisionFlags.current[index]) {
+          // Reset the flag when no longer colliding
+          collisionFlags.current[index] = false;
+        }
+      }
+    });
+  });
+
+  // Booster particles
+  useFrame(() => {
+    if (velocity.length() > 0.1 && spaceshipRef.current) {
+      // Emit particles opposite to the direction of movement
+      const direction = velocity.clone().normalize().multiplyScalar(-1);
+      const boosterOffsetY = 1; // Adjust based on spaceship size
+
+      const particleLeft = new THREE.Vector3(
+        spaceshipRef.current.position.x - 2,
+        spaceshipRef.current.position.y - boosterOffsetY,
+        spaceshipRef.current.position.z
+      );
+      const particleRight = new THREE.Vector3(
+        spaceshipRef.current.position.x + 2,
+        spaceshipRef.current.position.y - boosterOffsetY,
+        spaceshipRef.current.position.z
+      );
+      // Create particles
+      const particleGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Original size
+      const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 1 });
+      const particleLeftMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+      const particleRightMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+      particleLeftMesh.position.copy(particleLeft);
+      particleRightMesh.position.copy(particleRight);
+      particleLeftMesh.velocity = direction.clone().multiplyScalar(0.5);
+      particleRightMesh.velocity = direction.clone().multiplyScalar(0.5);
+      threeScene.add(particleLeftMesh);
+      threeScene.add(particleRightMesh);
+
+      // Animate particles
+      const animateParticle = () => {
+        if (particleLeftMesh && particleRightMesh) {
+          particleLeftMesh.position.add(particleLeftMesh.velocity);
+          particleRightMesh.position.add(particleRightMesh.velocity);
+          // Fade out
+          particleLeftMesh.material.opacity -= 0.02;
+          particleRightMesh.material.opacity -= 0.02;
+          if (particleLeftMesh.material.opacity <= 0 || particleRightMesh.material.opacity <= 0) {
+            threeScene.remove(particleLeftMesh);
+            threeScene.remove(particleRightMesh);
+          } else {
+            requestAnimationFrame(animateParticle);
+          }
+        }
+      };
+      animateParticle();
+    }
+  });
+
+  return (
+    <>
+      {/* Spaceship */}
+      <primitive
+        ref={spaceshipRef}
+        object={scene}
+        position={[0, 0, 0]}
+        scale={[1, 1, 1]} // Reset to original scale
+        castShadow
+        receiveShadow
+      />
+
+      {/* "Let's Go" Text */}
+      <Text
+        ref={textRef}
+        position={[0, 10, 0]} // Adjust as needed
+        font={customFont}
+        fontSize={2}
+        color="white"
+        anchorX="center"
+        anchorY="bottom"
+        outlineWidth={0.1}
+        outlineColor="black"
+      >
+        Let's Go
+      </Text>
+    </>
+  );
+};
+
+// Preload the GLTF model for better performance
+useGLTF.preload(spaceshipModel);
