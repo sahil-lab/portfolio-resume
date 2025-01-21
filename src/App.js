@@ -15,6 +15,7 @@ import {
   SSAO
 } from "@react-three/postprocessing";
 import React, {
+  Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -44,7 +45,7 @@ extend({
   EnhancedNebulaeMaterial
 });
 
-
+import LoadingScreen from "./components/LoadingScreen"; // Import the LoadingScreen component
 const popupMessages = [
   "I hope you like the space you are in! Let's get in touch. Contact me at: 8559067075 / sahil.aps2k12@gmail.com",
   "Have you tried pressing WASD for space travel?",
@@ -868,6 +869,7 @@ export const App = () => {
         dpr={[1, 1.5]}
         camera={{ position: [0, 0, 300], fov: 35, near: 1, far: 4000 }} // Increase far plane
       >
+        <Suspense fallback={<LoadingScreen />}>
         <OrbitControls />
         {/* Lighting Setup */}
         <ambientLight intensity={0.2} color="#ffffff" /> {/* Subtle ambient light */}
@@ -954,6 +956,7 @@ export const App = () => {
 
         {/* Logo Planets */}
         <LogoPlanets />
+        </Suspense>
       </Canvas>
 
       {/* Popup Component */}
