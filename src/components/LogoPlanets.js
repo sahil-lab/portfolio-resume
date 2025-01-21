@@ -7,7 +7,7 @@ import {
   useGLTF,
   PointerLockControls,
   useCursor,
-  PositionalAudio, // Import PositionalAudio
+  PositionalAudio,
 } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
 import React, {
@@ -38,6 +38,21 @@ import customFont from '../assets/fonts/Roboto-Bold.ttf';
 // Import the spaceship GLB model
 import spaceshipModel from '../assets/spaceship.glb'; // Adjust the path as necessary
 
+// Helper function to trigger link opening or download
+const triggerLink = (link, download = false) => {
+  if (download) {
+    // Create an anchor element to trigger the download
+    const linkElement = document.createElement('a');
+    linkElement.href = link; // Direct URL to the resume PDF
+    linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
+    document.body.appendChild(linkElement);
+    linkElement.click();
+    linkElement.remove();
+  } else {
+    window.open(link, "_blank"); // Open the link in a new tab
+  }
+};
+
 // 18. LogoPlanet Component for clickable logo-bearing planets
 const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download }) => {
   // Load the logo texture
@@ -45,22 +60,6 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
 
   // Reference for the mesh
   const meshRef = useRef();
-
-  // Handle click event to open the link or download the resume
-  const handleClick = (event) => {
-    event.stopPropagation(); // Prevent event from bubbling up
-    if (download) {
-      // Create an anchor element to trigger the download
-      const linkElement = document.createElement('a');
-      linkElement.href = link; // Direct URL to the resume PDF
-      linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
-      document.body.appendChild(linkElement);
-      linkElement.click();
-      linkElement.remove();
-    } else {
-      window.open(link, "_blank"); // Open the link in a new tab
-    }
-  };
 
   // Hover state for visual feedback
   const [hovered, setHovered] = useState(false);
@@ -91,6 +90,12 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
       document.body.style.cursor = "default";
     }
   }, [hovered]);
+
+  // Handle click event to open the link or download the resume
+  const handleClick = (event) => {
+    event.stopPropagation(); // Prevent event from bubbling up
+    triggerLink(link, download);
+  };
 
   return (
     <mesh
@@ -266,8 +271,10 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
 // Utility function to generate random positions with minimum distance and exclusion zones
 const generateRandomPositions = (count, minDistance, range, exclusionZones = []) => {
   const positions = [];
+  let attempts = 0;
+  const maxAttempts = count * 100; // Prevent infinite loops
 
-  while (positions.length < count) {
+  while (positions.length < count && attempts < maxAttempts) {
     const x = THREE.MathUtils.randFloatSpread(range);
     const y = THREE.MathUtils.randFloatSpread(range);
     const z = THREE.MathUtils.randFloatSpread(range);
@@ -284,9 +291,26 @@ const generateRandomPositions = (count, minDistance, range, exclusionZones = [])
       }
     }
 
+    // Check against already placed logo planets to prevent intersection
+    if (valid) {
+      for (let existingPos of positions) {
+        const distance = new THREE.Vector3(...pos).distanceTo(new THREE.Vector3(...existingPos));
+        if (distance < minDistance) {
+          valid = false;
+          break;
+        }
+      }
+    }
+
     if (valid) {
       positions.push(pos);
     }
+
+    attempts++;
+  }
+
+  if (positions.length < count) {
+    console.warn(`Could only place ${positions.length} out of ${count} logo planets after ${maxAttempts} attempts.`);
   }
 
   return positions;
@@ -480,27 +504,17 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
       const spaceshipPosition = spaceshipRef.current.position.clone();
 
       // Define collision radii based on scales
-      const spaceshipRadius = 0.5; // Half of the original spaceship scale (1 / 2)
-      const planetRadius = 2.5;      // Half of the planet scale (5 / 2)
+      const spaceshipRadius = 10; // Adjusted based on spaceship scale (10)
+      const planetRadius = 5.5;    // size=5, scaled by 1.1 on hover
 
-      const collisionDistance = spaceshipRadius + planetRadius; // 3
+      const collisionDistance = spaceshipRadius + planetRadius; // 15.5
 
       const distance = spaceshipPosition.distanceTo(planetPosition);
 
       if (distance <= collisionDistance) {
         if (!collisionFlags.current[index]) {
-          // Trigger the link or audio
-          if (logos[index].download) {
-            // Download the resume
-            const linkElement = document.createElement('a');
-            linkElement.href = logos[index].link; // Direct URL to the resume PDF
-            linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
-            document.body.appendChild(linkElement);
-            linkElement.click();
-            linkElement.remove();
-          } else {
-            window.open(logos[index].link, "_blank");
-          }
+          // Trigger the link or download
+          triggerLink(logos[index].link, logos[index].download || false);
           // Set the flag to true to prevent multiple triggers
           collisionFlags.current[index] = true;
         }
@@ -517,10 +531,11 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
     const musicPlanetPosition = new THREE.Vector3(0, -100, 0); // Same as MusicPlanet's position
     const spaceshipPosition = spaceshipRef.current.position.clone();
 
-    const spaceshipRadius = 0.5; // Same as above
-    const musicPlanetRadius = 5 * 100 / 2; // size=5 scaled by 100, so radius=250
+    const spaceshipRadius = 10; // Adjusted based on spaceship scale
+    const musicPlanetScale = 100; // size=5 scaled by 20
+    const musicPlanetRadius = musicPlanetScale / 2; // 50
 
-    const collisionDistanceMusic = spaceshipRadius + musicPlanetRadius; // 0.5 + 250 = 250.5
+    const collisionDistanceMusic = spaceshipRadius + musicPlanetRadius; // 60
 
     const distanceToMusicPlanet = spaceshipPosition.distanceTo(musicPlanetPosition);
 
@@ -611,7 +626,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         ref={spaceshipRef}
         object={scene}
         position={[0, 0, 0]}
-        scale={[10, 10, 10]} // Reset to original scale
+        scale={[10, 10, 10]} // Adjusted scale for accurate collision detection
         castShadow
         receiveShadow
       />
