@@ -611,7 +611,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         ref={spaceshipRef}
         object={scene}
         position={[0, 0, 0]}
-        scale={[1, 1, 1]} // Reset to original scale
+        scale={[10, 10, 10]} // Reset to original scale
         castShadow
         receiveShadow
       />
