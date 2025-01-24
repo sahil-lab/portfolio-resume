@@ -43,7 +43,7 @@ const triggerLink = (link, download = false) => {
   if (download) {
     // Create an anchor element to trigger the download
     const linkElement = document.createElement('a');
-    linkElement.href = link; // Direct URL to the resume PDF
+    linkElement.href = link; // Use the link variable correctly
     linkElement.setAttribute('download', 'resume.pdf'); // Desired file name
     document.body.appendChild(linkElement);
     linkElement.click();
@@ -53,7 +53,47 @@ const triggerLink = (link, download = false) => {
   }
 };
 
-// 18. LogoPlanet Component for clickable logo-bearing planets
+// OrbitingRing Component for adding rings around planets
+const OrbitingRing = ({ size, rotationSpeed, color }) => {
+  const ringRef = useRef();
+
+  useFrame((state, delta) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.y += rotationSpeed * delta;
+    }
+  });
+
+  return (
+    <mesh ref={ringRef}>
+      <torusGeometry args={[size, 0.1, 16, 100]} />
+      <meshStandardMaterial color={color} transparent opacity={0.5} />
+    </mesh>
+  );
+};
+
+// OrbitingParticle Component for adding particles orbiting the planet
+const OrbitingParticle = ({ distance, speed, color, size }) => {
+  const particleRef = useRef();
+  const angleRef = useRef(Math.random() * Math.PI * 2); // Random starting angle
+
+  useFrame((state, delta) => {
+    angleRef.current += speed * delta;
+    const x = distance * Math.cos(angleRef.current);
+    const z = distance * Math.sin(angleRef.current);
+    if (particleRef.current) {
+      particleRef.current.position.set(x, 0, z);
+    }
+  });
+
+  return (
+    <mesh ref={particleRef}>
+      <sphereGeometry args={[size, 8, 8]} />
+      <meshStandardMaterial color={color} />
+    </mesh>
+  );
+};
+
+// 18. LogoPlanet Component for clickable logo-bearing planets with animations
 const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download }) => {
   // Load the logo texture
   const texture = useTexture(logo);
@@ -67,8 +107,8 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
   // Reference for the text mesh to apply animations
   const textRef = useRef();
 
-  // Floating animation state
-  const [floatOffset, setFloatOffset] = useState(0);
+  // Floating animation state using ref to prevent unnecessary re-renders
+  const floatOffsetRef = useRef(0);
 
   // Rotate the planet for animation and handle floating text
   useFrame((state, delta) => {
@@ -77,18 +117,14 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
     }
     if (textRef.current) {
       // Update floating animation
-      setFloatOffset(prev => prev + delta);
-      textRef.current.position.y = size + 4 + Math.sin(floatOffset) * 0.2;
+      floatOffsetRef.current += delta;
+      textRef.current.position.y = size + 4 + Math.sin(floatOffsetRef.current) * 0.2;
     }
   });
 
   // Change cursor on hover
   useEffect(() => {
-    if (hovered) {
-      document.body.style.cursor = "pointer";
-    } else {
-      document.body.style.cursor = "default";
-    }
+    document.body.style.cursor = hovered ? "pointer" : "default";
   }, [hovered]);
 
   // Handle click event to open the link or download the resume
@@ -155,6 +191,15 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
       >
         {label}
       </Text>
+
+      {/* Orbiting Rings */}
+      <OrbitingRing size={size + 2} rotationSpeed={0.2} color={emissiveColor} />
+      <OrbitingRing size={size + 4} rotationSpeed={0.1} color={emissiveColor} />
+
+      {/* Orbiting Particles */}
+      <OrbitingParticle distance={size + 6} speed={0.5} color="white" size={0.1} />
+      <OrbitingParticle distance={size + 6} speed={0.7} color="cyan" size={0.1} />
+      <OrbitingParticle distance={size + 6} speed={0.6} color="magenta" size={0.1} />
     </mesh>
   );
 };
@@ -190,11 +235,7 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
 
   // Change cursor on hover
   useEffect(() => {
-    if (hovered) {
-      document.body.style.cursor = "pointer";
-    } else {
-      document.body.style.cursor = "default";
-    }
+    document.body.style.cursor = hovered ? "pointer" : "default";
   }, [hovered]);
 
   // Rotate the music planet for animation
@@ -356,7 +397,7 @@ const LogoPlanets = () => {
     new THREE.Color(0xF8F8FF), // Neon Pink
     new THREE.Color(0x00F0FF), // Neon Blue
     new THREE.Color(0xFFFF33), // Neon Yellow
-    new THREE.Color(0xFFFF33), // Neon Magenta
+    new THREE.Color(0xFF00FF), // Neon Magenta
     new THREE.Color(0x0FF0FC), // Neon Cyan
     new THREE.Color(0xF8F8FF), // Ghost White (for a bright look)
   ], []);
@@ -366,7 +407,7 @@ const LogoPlanets = () => {
     return logos.map((_, index) => neonColors[index % neonColors.length]);
   }, [logos.length, neonColors]);
 
-  // Increase the size of the planets from 4 to 5
+  // Define the size of the planets
   const planetSize = 5; // New size value
 
   return (
@@ -415,37 +456,40 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
   const textRef = useRef();
   const { camera, gl, scene: threeScene } = useThree();
 
-  // Movement state
-  const [velocity, setVelocity] = useState(new THREE.Vector3());
+  // Movement state using refs for mutable values
+  const velocity = useRef(new THREE.Vector3());
   const acceleration = 0.2;
   const deceleration = 0.95;
   const maxSpeed = 5;
 
   // Controls state
-  const [keys, setKeys] = useState({
+  const keys = useRef({
     w: false,
     a: false,
     s: false,
     d: false,
     ArrowUp: false,
     ArrowDown: false,
+    q: false,
+    e: false
   });
 
   // Collision flags to prevent multiple triggers
-  // Initialize collision flags for logo planets + MusicPlanet
   const totalCollisions = logoPositions.length + 1; // +1 for MusicPlanet
   const collisionFlags = useRef(new Array(totalCollisions).fill(false));
 
   // Handle keydown and keyup events
   useEffect(() => {
     const handleKeyDown = (e) => {
-      if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        setKeys((prev) => ({ ...prev, [e.key]: true }));
+      const key = e.key;
+      if (keys.current.hasOwnProperty(key)) {
+        keys.current[key] = true;
       }
     };
     const handleKeyUp = (e) => {
-      if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
-        setKeys((prev) => ({ ...prev, [e.key]: false }));
+      const key = e.key;
+      if (keys.current.hasOwnProperty(key)) {
+        keys.current[key] = false;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -456,45 +500,55 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
     };
   }, []);
 
-  // Update velocity based on keys
+  // Helper function to get rotation quaternion based on keys
+  const getRotationQuaternion = () => {
+    const quaternion = new THREE.Quaternion();
+    const euler = new THREE.Euler(0, 0, 0, 'XYZ');
+
+    if (keys.current.a) euler.y += 0.02; // Rotate left around Y-axis
+    if (keys.current.d) euler.y -= 0.02; // Rotate right around Y-axis
+    if (keys.current.q) euler.z += 0.02; // Roll left
+    if (keys.current.e) euler.z -= 0.02; // Roll right
+    if (keys.current.ArrowUp) euler.x += 0.02; // Pitch up
+    if (keys.current.ArrowDown) euler.x -= 0.02; // Pitch down
+
+    quaternion.setFromEuler(euler);
+    return quaternion;
+  };
+
+  // Update spaceship movement and orientation
   useFrame(() => {
+    if (!spaceshipRef.current) return;
+
+    // Handle rotation
+    const rotationQuaternion = getRotationQuaternion();
+    spaceshipRef.current.quaternion.multiplyQuaternions(rotationQuaternion, spaceshipRef.current.quaternion);
+
+    // Handle movement direction (forward/backward)
     let direction = new THREE.Vector3();
 
-    // WASD for X and Z movement
-    if (keys.w) direction.z -= 1; // Forward
-    if (keys.s) direction.z += 1; // Backward
-    if (keys.a) direction.x -= 1; // Left
-    if (keys.d) direction.x += 1; // Right
-
-    // Arrow Up/Down for Y movement
-    if (keys.ArrowUp) direction.y += 1; // Up
-    if (keys.ArrowDown) direction.y -= 1; // Down
+    if (keys.current.w) direction.z -= 1; // Forward
+    if (keys.current.s) direction.z += 1; // Backward
 
     if (direction.length() > 0) {
       direction.normalize();
+      direction.applyQuaternion(spaceshipRef.current.quaternion);
       direction.multiplyScalar(acceleration);
-      setVelocity((prev) => {
-        const newVel = prev.clone().add(direction);
-        newVel.clampLength(0, maxSpeed);
-        return newVel;
-      });
+      velocity.current.add(direction);
+      velocity.current.clampLength(0, maxSpeed);
     } else {
       // Apply deceleration when no keys are pressed
-      setVelocity((prev) => prev.clone().multiplyScalar(deceleration));
+      velocity.current.multiplyScalar(deceleration);
     }
 
     // Update spaceship position
-    if (spaceshipRef.current) {
-      spaceshipRef.current.position.add(velocity.clone());
-      spaceshipRef.current.rotation.y += velocity.x * 0.01; // Optional: Rotate based on movement
-      spaceshipRef.current.rotation.x += velocity.z * 0.01; // Optional: Rotate based on movement
-      spaceshipRef.current.rotation.z += velocity.y * 0.01; // Optional: Rotate based on Y movement
-    }
+    spaceshipRef.current.position.add(velocity.current.clone());
 
     // Update "Let's Go" text position
     if (textRef.current && spaceshipRef.current) {
-      textRef.current.position.copy(spaceshipRef.current.position);
-      textRef.current.position.y += 10; // Adjust as needed
+      const offset = new THREE.Vector3(0, 10, 0); // Adjust as needed
+      textRef.current.position.copy(spaceshipRef.current.position).add(offset);
+      textRef.current.quaternion.copy(spaceshipRef.current.quaternion); // Keep text aligned with spaceship
     }
 
     // Collision detection with precise contact
@@ -547,7 +601,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
           const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
           if (audio && !audio.isPlaying) {
             audio.play();
-            setIsPlaying(true); // Update local state if necessary
+            // Optionally, you can set a state or ref here if needed
           }
         }
         // Set the flag to true to prevent multiple triggers
@@ -561,32 +615,32 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
           const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
           if (audio && audio.isPlaying) {
             audio.stop();
-            setIsPlaying(false); // Update local state if necessary
+            // Optionally, you can set a state or ref here if needed
           }
         }
         // Reset the flag when no longer colliding
         collisionFlags.current[musicPlanetIndex] = false;
       }
     }
-  });
 
-  // Booster particles
-  useFrame(() => {
-    if (velocity.length() > 0.1 && spaceshipRef.current) {
+    // Booster particles
+    if (velocity.current.length() > 0.1 && spaceshipRef.current) {
       // Emit particles opposite to the direction of movement
-      const direction = velocity.clone().normalize().multiplyScalar(-1);
+      const direction = velocity.current.clone().normalize().multiplyScalar(-1);
       const boosterOffsetY = 1; // Adjust based on spaceship size
 
       const particleLeft = new THREE.Vector3(
         spaceshipRef.current.position.x - 2,
         spaceshipRef.current.position.y - boosterOffsetY,
         spaceshipRef.current.position.z
-      );
+      ).add(direction.clone().multiplyScalar(2));
+
       const particleRight = new THREE.Vector3(
         spaceshipRef.current.position.x + 2,
         spaceshipRef.current.position.y - boosterOffsetY,
         spaceshipRef.current.position.z
-      );
+      ).add(direction.clone().multiplyScalar(2));
+
       // Create particles
       const particleGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Original size
       const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 1 });
@@ -634,7 +688,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
       {/* "Let's Go" Text */}
       <Text
         ref={textRef}
-        position={[0, 10, 0]} // Adjust as needed
+        position={[0, 10, 0]} // Initial position; will be updated in useFrame
         font={customFont}
         fontSize={2}
         color="white"
@@ -642,6 +696,11 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         anchorY="bottom"
         outlineWidth={0.1}
         outlineColor="black"
+        material-toneMapped={false}
+        emissive="cyan"
+        emissiveIntensity={0.5}
+        // Keep text always facing the camera
+        billboard
       >
         Let's Go
       </Text>
