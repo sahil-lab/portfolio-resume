@@ -110,6 +110,9 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
   // Floating animation state using ref to prevent unnecessary re-renders
   const floatOffsetRef = useRef(0);
 
+  // Rotation angle for text
+  const textRotationRef = useRef(0);
+
   // Rotate the planet for animation and handle floating text
   useFrame((state, delta) => {
     if (meshRef.current) {
@@ -120,8 +123,14 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
       floatOffsetRef.current += delta;
       textRef.current.position.y = size + 4 + Math.sin(floatOffsetRef.current) * 0.2;
 
-      // Make text face the camera
-      textRef.current.quaternion.copy(state.camera.quaternion);
+      // Update text rotation
+      textRotationRef.current += delta; // Adjust rotation speed as desired
+      const rotationQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, textRotationRef.current, 0));
+
+      // Make text face the camera and apply rotation
+      const cameraQuat = state.camera.quaternion.clone();
+      const combinedQuat = cameraQuat.multiply(rotationQuat);
+      textRef.current.quaternion.copy(combinedQuat);
     }
   });
 
@@ -231,6 +240,9 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
   // Floating animation state using ref to prevent unnecessary re-renders
   const floatOffsetRef = useRef(0);
 
+  // Rotation angle for text
+  const textRotationRef = useRef(0);
+
   // Handle click event to toggle music playback
   const handleClick = (event) => {
     event.stopPropagation(); // Prevent event from bubbling up
@@ -258,8 +270,14 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
       floatOffsetRef.current += delta;
       textRef.current.position.y = size * 20 + 4 + Math.sin(floatOffsetRef.current) * 0.2;
 
-      // Make text face the camera
-      textRef.current.quaternion.copy(state.camera.quaternion);
+      // Update text rotation
+      textRotationRef.current += delta; // Adjust rotation speed as desired
+      const rotationQuat = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, textRotationRef.current, 0));
+
+      // Make text face the camera and apply rotation
+      const cameraQuat = state.camera.quaternion.clone();
+      const combinedQuat = cameraQuat.multiply(rotationQuat);
+      textRef.current.quaternion.copy(combinedQuat);
     }
   });
 
@@ -303,6 +321,7 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
         opacity={hovered ? 1 : 0}
         transparent={true}
         billboard // <-- Added billboard prop
+        // Smooth transition for opacity
         onBeforeCompile={(shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
             `#include <alphamap_fragment>`,
@@ -570,11 +589,13 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
     // Update spaceship position
     spaceshipRef.current.position.add(velocity.current.clone());
 
-    // Update "Let's Go" text position and make it face the camera
+    // Update "Let's Go" text position and make it rotate independently
     if (textRef.current && spaceshipRef.current) {
       const offset = new THREE.Vector3(0, 10, 0); // Adjust as needed
       textRef.current.position.copy(spaceshipRef.current.position).add(offset);
-      textRef.current.quaternion.copy(state.camera.quaternion); // Keep text aligned with camera
+
+      // Continuous rotation
+      textRef.current.rotation.y += 0.02; // Adjust rotation speed as desired
     }
 
     // Collision detection with precise contact
@@ -726,8 +747,16 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         emissive="cyan"
         emissiveIntensity={0.5}
         billboard // <-- Added billboard prop
-        // Keep text always facing the camera
-        // You can also use 'lookAt' in useFrame if needed
+        // Smooth transition for opacity
+        onBeforeCompile={(shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace(
+            `#include <alphamap_fragment>`,
+            `
+              #include <alphamap_fragment>
+              diffuseColor.a *= opacity;
+            `
+          );
+        }}
       >
         Let's Go
       </Text>
