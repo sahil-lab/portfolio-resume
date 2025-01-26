@@ -10,13 +10,14 @@ import {
   PositionalAudio,
 } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import React, {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  Suspense,
-} from "react";
+import React,
+  {
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    Suspense,
+  } from "react";
 import * as THREE from "three";
 
 // Import Logo Textures
@@ -119,6 +120,9 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
       // Update floating animation
       floatOffsetRef.current += delta;
       textRef.current.position.y = size + 4 + Math.sin(floatOffsetRef.current) * 0.2;
+
+      // Make text face the camera
+      textRef.current.quaternion.copy(state.camera.quaternion);
     }
   });
 
@@ -178,6 +182,8 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
         emissiveIntensity={0.5}
         opacity={hovered ? 1 : 0} // Control visibility
         transparent={true}
+        // Keep text always facing the camera
+        billboard
         // Smooth transition for opacity
         onBeforeCompile={(shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
@@ -221,6 +227,12 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
   // State to track if music is playing
   const [isPlaying, setIsPlaying] = useState(false);
 
+  // Reference for the text mesh to apply animations
+  const textRef = useRef();
+
+  // Floating animation state using ref to prevent unnecessary re-renders
+  const floatOffsetRef = useRef(0);
+
   // Handle click event to toggle music playback
   const handleClick = (event) => {
     event.stopPropagation(); // Prevent event from bubbling up
@@ -239,9 +251,17 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
   }, [hovered]);
 
   // Rotate the music planet for animation
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (meshRef.current) {
       meshRef.current.rotation.y += 0.001; // Adjust rotation speed as desired
+    }
+    if (textRef.current) {
+      // Update floating animation
+      floatOffsetRef.current += delta;
+      textRef.current.position.y = size * 20 + 4 + Math.sin(floatOffsetRef.current) * 0.2;
+
+      // Make text face the camera
+      textRef.current.quaternion.copy(state.camera.quaternion);
     }
   });
 
@@ -270,7 +290,8 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
       
       {/* Label Text */}
       <Text
-        position={[0, size * 100 + 4, 0]} // Position above the model, adjusted for scale
+        ref={textRef}
+        position={[0, size * 20 + 4, 0]} // Position above the model, adjusted for scale
         font={customFont}
         fontSize={200} // Adjust font size proportionally
         color="white"
@@ -283,6 +304,8 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
         emissiveIntensity={0.5}
         opacity={hovered ? 1 : 0}
         transparent={true}
+        // Keep text always facing the camera
+        billboard
         onBeforeCompile={(shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
             `#include <alphamap_fragment>`,
@@ -517,7 +540,7 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
   };
 
   // Update spaceship movement and orientation
-  useFrame(() => {
+  useFrame((state, delta) => {
     if (!spaceshipRef.current) return;
 
     // Handle rotation
@@ -544,11 +567,11 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
     // Update spaceship position
     spaceshipRef.current.position.add(velocity.current.clone());
 
-    // Update "Let's Go" text position
+    // Update "Let's Go" text position and make it face the camera
     if (textRef.current && spaceshipRef.current) {
       const offset = new THREE.Vector3(0, 10, 0); // Adjust as needed
       textRef.current.position.copy(spaceshipRef.current.position).add(offset);
-      textRef.current.quaternion.copy(spaceshipRef.current.quaternion); // Keep text aligned with spaceship
+      textRef.current.quaternion.copy(state.camera.quaternion); // Keep text aligned with camera
     }
 
     // Collision detection with precise contact
