@@ -10,14 +10,13 @@ import {
   PositionalAudio,
 } from "@react-three/drei";
 import { useFrame, useThree } from "@react-three/fiber";
-import React,
-  {
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
-    Suspense,
-  } from "react";
+import React, {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  Suspense,
+} from "react";
 import * as THREE from "three";
 
 // Import Logo Textures
@@ -155,7 +154,7 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
         roughness={0.3}
         transparent={true}
         emissive={emissiveColor} // Set emissive color for glow
-        emissiveIntensity={hovered ? 2 : 1.5} // Increase emissive intensity on hover
+        emissiveIntensity={download ? (hovered ? 3 : 2.5) : (hovered ? 2 : 1.5)} // Increased intensity for Resume
       />
       {/* Add white outlines */}
       <CustomOutlines
@@ -182,8 +181,7 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
         emissiveIntensity={0.5}
         opacity={hovered ? 1 : 0} // Control visibility
         transparent={true}
-        // Keep text always facing the camera
-        billboard
+        billboard // <-- Added billboard prop
         // Smooth transition for opacity
         onBeforeCompile={(shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
@@ -304,8 +302,7 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
         emissiveIntensity={0.5}
         opacity={hovered ? 1 : 0}
         transparent={true}
-        // Keep text always facing the camera
-        billboard
+        billboard // <-- Added billboard prop
         onBeforeCompile={(shader) => {
           shader.fragmentShader = shader.fragmentShader.replace(
             `#include <alphamap_fragment>`,
@@ -427,8 +424,14 @@ const LogoPlanets = () => {
 
   // Assign neon colors to planets, cycling through if necessary
   const glowingColors = useMemo(() => {
-    return logos.map((_, index) => neonColors[index % neonColors.length]);
-  }, [logos.length, neonColors]);
+    return logos.map((logo, index) => {
+      // Assign a specific emissive color to the Resume planet
+      if (logo.download) {
+        return new THREE.Color(0xFFD700); // Gold color for Resume
+      }
+      return neonColors[index % neonColors.length];
+    });
+  }, [logos, neonColors]);
 
   // Define the size of the planets
   const planetSize = 5; // New size value
@@ -722,8 +725,9 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         material-toneMapped={false}
         emissive="cyan"
         emissiveIntensity={0.5}
+        billboard // <-- Added billboard prop
         // Keep text always facing the camera
-        billboard
+        // You can also use 'lookAt' in useFrame if needed
       >
         Let's Go
       </Text>
