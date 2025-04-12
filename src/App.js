@@ -1,26 +1,45 @@
 // src/App.js
 
-import { Physics, useSphere } from "@react-three/cannon";
+import { Physics, useSphere, useBox } from "@react-three/cannon";
 import {
   Environment,
   OrbitControls,
-  shaderMaterial
+  shaderMaterial,
+  useMatcapTexture,
+  Sky,
+  Stars,
+  Cloud,
+  Float,
+  Sparkles,
+  Trail,
+  AdaptiveDpr,
+  AdaptiveEvents,
+  PerformanceMonitor,
+  Preload,
+  BakeShadows
 } from "@react-three/drei";
 import { Canvas, extend, useFrame, useThree } from "@react-three/fiber";
 import {
   Bloom,
   EffectComposer,
-  // Screen Space Ambient Occlusion
+  ChromaticAberration,
+  DepthOfField,
+  Noise,
+  Vignette,
+  GodRays,
+  ToneMapping,
   SMAA,
   SSAO
 } from "@react-three/postprocessing";
+import { BlendFunction, Resizer, KernelSize } from "postprocessing";
 import React, {
   Suspense,
   useEffect,
   useLayoutEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useCallback
 } from "react";
 import * as THREE from "three";
 
@@ -33,30 +52,115 @@ import Nebulae from "./components/Nebulae";
 import {
   EnhancedNebulaeMaterial,
   OutlinesMaterial,
-  ProceduralSphereMaterial
+  ProceduralSphereMaterial,
+  AtmosphereMaterial,
+  PulsatingMaterial,
+  WormholeMaterial,
+  BlackHoleMaterial,
+  GlassPlanetMaterial
 } from "./components/ShaderMaterials";
 import Spheres from "./components/Spheres";
 import Starfield from "./components/Starfield";
 import Popup from "./components/Popup";
+import LoadingScreen from "./components/LoadingScreen";
+import SpaceJunk from "./components/SpaceJunk";
+import WormholePortal from "./components/WormholePortal";
+import BlackHole from "./components/BlackHole";
+import SpaceStation from "./components/SpaceStation";
+import PlanetRings from "./components/PlanetRings";
+import SpaceDebris from "./components/SpaceDebris";
+import AsteroidField from "./components/AsteroidField";
+import GalacticCore from "./components/GalacticCore";
+import ControlPanel from "./components/ControlPanel";
+import SpaceDust from "./components/SpaceDust";
+import SoundScape from "./components/SoundScape";
+import GalaxyCluster from "./components/GalaxyCluster";
+import TimeControls from "./components/TimeControls";
+import { useControls } from "leva";
+import AlienCharacter from "./components/AlienCharacter";
+import DancingRobot from "./components/DancingRobot";
+import Supernova from "./components/Supernova";
+import CosmicPortal from "./components/CosmicPortal";
+import GalacticRadar from "./components/GalacticRadar";
+import SpiralGalaxy from "./components/SpiralGalaxy";
+import CelestialBridge from "./components/CelestialBridge";
+import CrystalFormation from "./components/CrystalFormation";
+import ComputerPC from "./components/ComputerPC";
+
 // Extend Three.js with custom materials
 extend({
   OutlinesMaterial,
   ProceduralSphereMaterial,
-  EnhancedNebulaeMaterial
+  EnhancedNebulaeMaterial,
+  AtmosphereMaterial,
+  PulsatingMaterial,
+  WormholeMaterial,
+  BlackHoleMaterial,
+  GlassPlanetMaterial
 });
 
-import LoadingScreen from "./components/LoadingScreen"; // Import the LoadingScreen component
+// Enhanced popup messages with more interesting content and interactive elements
 const popupMessages = [
-  "I hope you like the space you are in! Let's get in touch. Contact me at: 8559067075 / sahil.aps2k12@gmail.com",
-  "Have you tried pressing WASD for space travel?",
-  "Why don't you try clickin on the sun ?",
-  "Did you know? A teaspoon of a neutron star would weigh about 6 billion tons!",
-  "Fun Fact: There are more stars in the universe than grains of sand on all the beaches on Earth.",
-  "Did you know? Space is completely silent because there is no atmosphere to carry sound.",
-  "Fun Fact: A day on Venus is longer than a year on Venus!",
-  "Did you know? 99% of our solar system's mass is in the Sun.",
-  "Fun Fact: There are potentially more planets in the universe than grains of sand on Earth.",
-  // Add more facts or messages as desired
+  {
+    text: "I hope you like the space you are in! Let's get in touch. Contact me at: 8559067075 / sahil.aps2k12@gmail.com",
+    type: "contact",
+    action: "mailto:sahil.aps2k12@gmail.com"
+  },
+  {
+    text: "Have you tried pressing WASD for space travel? Try shift for boost and ctrl for slow motion!",
+    type: "tip",
+    highlight: ["W", "A", "S", "D", "SHIFT", "CTRL"]
+  },
+  {
+    text: "Why don't you try clicking on the sun? It might show you something interesting...",
+    type: "interactive",
+    targetObject: "sun"
+  },
+  {
+    text: "Did you know? A teaspoon of a neutron star would weigh about 6 billion tons!",
+    type: "fact",
+    image: "neutron-star.jpg"
+  },
+  {
+    text: "Try the 'T' key to activate time distortion around celestial bodies!",
+    type: "tip",
+    highlight: ["T"]
+  },
+  {
+    text: "Press 'G' to toggle gravity visualization around massive objects",
+    type: "tip",
+    highlight: ["G"]
+  },
+  {
+    text: "Press 'E' near any planet to explore its surface up close",
+    type: "tip",
+    highlight: ["E"]
+  },
+  {
+    text: "Did you know? Space is completely silent because there is no atmosphere to carry sound.",
+    type: "fact",
+    sound: "space-silence.mp3"
+  },
+  {
+    text: "Try pressing 'C' to switch camera perspectives",
+    type: "tip",
+    highlight: ["C"]
+  },
+  {
+    text: "Did you know? 99% of our solar system's mass is in the Sun.",
+    type: "fact",
+    visual: "sun-mass-visualization"
+  },
+  {
+    text: "Press 'M' to toggle the ambient music tracks",
+    type: "tip",
+    highlight: ["M"]
+  },
+  {
+    text: "Find all 7 hidden easter eggs throughout the universe for a special surprise!",
+    type: "challenge",
+    counter: "easterEggs"
+  }
 ];
 
 /* ----------------------------------------------------------------------------------
@@ -97,22 +201,52 @@ export const CustomOutlines = ({
 };
 
 /* ----------------------------------------------------------------------------------
-  2. useFrameState hook to track elapsed time
+  2. useFrameState hook to track elapsed time - enhanced with delta time scaling
 ---------------------------------------------------------------------------------- */
-const useFrameState = () => {
+const useFrameState = (speedFactor = 1) => {
   const [time, setTime] = useState(0);
+  const speedRef = useRef(speedFactor);
+
+  useEffect(() => {
+    speedRef.current = speedFactor;
+  }, [speedFactor]);
+
   useFrame((state, delta) => {
-    setTime((prev) => prev + delta);
+    setTime((prev) => prev + delta * speedRef.current);
   });
   return time;
 };
 
 /* ----------------------------------------------------------------------------------
-  3. Pointer component to visualize the mouse pointer in 3D space
+  Enhanced Pointer component with interactive effects
 ---------------------------------------------------------------------------------- */
 const Pointer = () => {
   const { camera, mouse } = useThree();
   const ref = useRef();
+  const trailRef = useRef();
+  const [active, setActive] = useState(false);
+  const [color, setColor] = useState(new THREE.Color("white"));
+  const colorRef = useRef(new THREE.Color("white"));
+
+  // Mouse click handler
+  useEffect(() => {
+    const handleMouseDown = () => {
+      setActive(true);
+      // Random color on click
+      colorRef.current.setHSL(Math.random(), 0.8, 0.8);
+      setColor(colorRef.current);
+
+      // Return to white after 500ms
+      setTimeout(() => {
+        colorRef.current.set("white");
+        setColor(colorRef.current);
+        setActive(false);
+      }, 500);
+    };
+
+    window.addEventListener("mousedown", handleMouseDown);
+    return () => window.removeEventListener("mousedown", handleMouseDown);
+  }, []);
 
   // Calculate the pointer position in 3D space based on mouse movement
   useFrame(() => {
@@ -121,22 +255,32 @@ const Pointer = () => {
   });
 
   return (
-    <mesh ref={ref} position={[0, 0, 0]}>
-      <sphereGeometry args={[0.05, 16, 16]} /> {/* Very small pointer */}
-      <meshStandardMaterial
-        color="white" // White color for the pointer
-        emissive="white" // Emissive color for glow effect
-        emissiveIntensity={5} // Strong emissive intensity
-        transparent
-        opacity={0.9} // Slight transparency
-      />
-      <CustomOutlines
-        color="white" // Outline color matching emissive color
-        opacity={0.7} // Semi-transparent outline
-        transparent={true}
-        thickness={0.01} // Very thin outline
-      />
-    </mesh>
+    <group>
+      <Trail
+        width={1}
+        length={8}
+        color={color.getStyle()}
+        attenuation={(t) => t * t}
+        visible={active}
+      >
+        <mesh ref={ref} position={[0, 0, 0]}>
+          <sphereGeometry args={[active ? 0.08 : 0.05, 16, 16]} />
+          <meshStandardMaterial
+            color={color}
+            emissive={color}
+            emissiveIntensity={2}
+            transparent
+            opacity={0.9}
+          />
+          <CustomOutlines
+            color={color}
+            opacity={0.7}
+            transparent={true}
+            thickness={0.01}
+          />
+        </mesh>
+      </Trail>
+    </group>
   );
 };
 
@@ -206,13 +350,18 @@ export const Sphere = ({ position, size, outlines, seed, baseColor }) => {
       onPointerOut={() => setHovered(false)}
     >
       <sphereGeometry args={[size, 64, 64]} /> {/* High-detail sphere */}
-      <proceduralSphereMaterial
-        metalness={0.6}
-        roughness={0.2}
-        baseColor={baseColor} // Unique base color
-        emissiveColor={emissiveColor} // Emissive color for glow
-        time={time} // Time uniform for animation
-        seed={seed} // Seed for procedural texture
+      <meshPhysicalMaterial
+        metalness={0.2}
+        roughness={0.1}
+        color={baseColor}
+        emissive={emissiveColor}
+        emissiveIntensity={0.5}
+        transparent={true}
+        transmission={0.9}
+        thickness={size * 2}
+        envMapIntensity={3.0}
+        clearcoat={1.0}
+        clearcoatRoughness={0.2}
       />
       <CustomOutlines
         color="black" // Black outline
@@ -340,13 +489,109 @@ const BlackSun = ({ position = [0, 0, 0], radius = 10 }) => {
 
   const time = useFrameState(); // Hook to get the current time for procedural material
 
+  // Add animated corona effect
+  const coronaRef = useRef();
+  const coronaParticlesRef = useRef();
+  const sunRef = useRef();
+  const [glowIntensity, setGlowIntensity] = useState(1.5);
+  const [sunInteracted, setSunInteracted] = useState(false);
+
+  // Corona animation
+  useFrame((state, delta) => {
+    if (coronaRef.current) {
+      coronaRef.current.rotation.z += delta * 0.05;
+      coronaRef.current.rotation.y += delta * 0.03;
+
+      // Pulse the corona
+      const pulse = Math.sin(state.clock.elapsedTime * 0.5) * 0.1 + 1;
+      coronaRef.current.scale.set(pulse, pulse, pulse);
+    }
+
+    if (coronaParticlesRef.current) {
+      coronaParticlesRef.current.rotation.y -= delta * 0.02;
+    }
+
+    if (sunRef.current) {
+      // Gentle pulsing effect
+      const pulseFactor = Math.sin(state.clock.elapsedTime * 0.3) * 0.05 + 1;
+      sunRef.current.material.emissiveIntensity = glowIntensity * pulseFactor;
+    }
+  });
+
+  const handleSunClick = useCallback(() => {
+    // Solar flare effect
+    setGlowIntensity(prev => prev + 0.25);
+    setSunInteracted(true);
+
+    // Return to normal after animation
+    setTimeout(() => {
+      setGlowIntensity(1.0);
+    }, 2000);
+  }, []);
+
   return (
-    <>
-      {/* Black Sun */}
-      <mesh position={position} onClick={generatePlanets}>
+    <group position={position}>
+      {/* Core sun sphere */}
+      <mesh
+        ref={sunRef}
+        onClick={handleSunClick}
+        onPointerOver={() => document.body.style.cursor = "pointer"}
+        onPointerOut={() => document.body.style.cursor = "default"}
+      >
         <sphereGeometry args={[radius, 64, 64]} />
-        <sunMaterial ref={sunMaterialRef} />
+        <meshPhysicalMaterial
+          color="#ffcc00"
+          emissive="#ffaa00"
+          emissiveIntensity={0.5}
+          metalness={0.2}
+          roughness={0.7}
+          transmission={0.5}
+          thickness={2.0}
+          envMapIntensity={2.0}
+          clearcoat={1.0}
+          clearcoatRoughness={0.3}
+        />
       </mesh>
+
+      {/* Corona effect */}
+      <mesh ref={coronaRef} scale={1.3}>
+        <sphereGeometry args={[radius, 32, 32]} />
+        <meshPhysicalMaterial
+          color="#ffdd44"
+          emissive="#ff8800"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.2}
+          side={THREE.BackSide}
+          transmission={0.9}
+          thickness={5.0}
+          envMapIntensity={1.5}
+          roughness={0.1}
+        />
+      </mesh>
+
+      {/* Solar flares */}
+      <Sparkles
+        ref={coronaParticlesRef}
+        count={300}
+        scale={radius * 2.5}
+        size={3}
+        speed={0.2}
+        opacity={0.5}
+        color="#ff7700"
+      />
+
+      {/* Volumetric light rays */}
+      {sunInteracted && (
+        <Sparkles
+          count={500}
+          scale={radius * 4}
+          size={4}
+          speed={0.8}
+          opacity={0.3}
+          color="#ffaa00"
+        />
+      )}
 
       {/* Dynamically render procedurally generated planets */}
       {planets.map((planet) => (
@@ -365,7 +610,7 @@ const BlackSun = ({ position = [0, 0, 0], radius = 10 }) => {
 
       {/* Fixed Main Planets */}
       <FixedMainPlanets />
-    </>
+    </group>
   );
 };
 
@@ -428,30 +673,50 @@ const Saturn = ({ position = [120, 0, 0], radius = 15, ringRadius = 25 }) => {
   extend({ SaturnMaterial: saturnMaterial });
 
   const ringRef = useRef();
+  const saturnRef = useRef();
 
   useFrame(({ clock }) => {
     if (ringRef.current) {
       // Rotate the rings over time
       ringRef.current.rotation.z = clock.getElapsedTime() * 0.1;
     }
+
+    // Update time uniform for glass material
+    if (saturnRef.current && saturnRef.current.material) {
+      saturnRef.current.material.time = clock.elapsedTime;
+    }
   });
 
   return (
     <group position={position}>
       {/* Saturn Sphere */}
-      <mesh>
+      <mesh ref={saturnRef}>
         <sphereGeometry args={[radius, 64, 64]} />
-        <saturnMaterial />
+        <glassPlanetMaterial
+          color={new THREE.Color(0.9, 0.7, 0.3)}
+          glowColor={new THREE.Color(0.9, 0.6, 0.1)}
+          glowIntensity={0.7}
+          transmission={0.8}
+          thickness={radius * 1.5}
+          envMapIntensity={2.0}
+          roughness={0.2}
+          clearcoat={1.0}
+          time={0}
+        />
       </mesh>
 
       {/* Saturn Rings */}
       <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[radius + 2, ringRadius, 64, 64]} />
-        <meshBasicMaterial
-          color="gray"
+        <meshPhysicalMaterial
+          color="#d2cdb8"
           side={THREE.DoubleSide}
           transparent
-          opacity={0.6}
+          opacity={0.8}
+          transmission={0.5}
+          thickness={1.0}
+          envMapIntensity={2.0}
+          roughness={0.2}
         />
       </mesh>
     </group>
@@ -461,35 +726,100 @@ const Saturn = ({ position = [120, 0, 0], radius = 15, ringRadius = 25 }) => {
 /* ----------------------------------------------------------------------------------
   7. AsteroidBelt component representing a belt of asteroids
 ---------------------------------------------------------------------------------- */
-const AsteroidBelt = ({ radius = 170, count = 5000 }) => {
-  const positions = useMemo(() => {
-    const posArray = [];
+const AsteroidBelt = ({ radius = 70, count = 5000 }) => {
+  const asteroidGroup = useRef();
+  const instancedMeshRef = useRef();
+  const dummy = useMemo(() => new THREE.Object3D(), []);
+  const scales = useMemo(() => new Float32Array(count), [count]);
+  const rotations = useMemo(() => new Float32Array(count * 3), [count]);
+  const orbitalSpeeds = useMemo(() => new Float32Array(count), [count]);
+  const orbitalAngles = useMemo(() => new Float32Array(count), [count]);
+  const [matcap] = useMatcapTexture("C8D1DC_575B62_818892_6E747B", 1024);
+
+  // Initialize asteroid positions, scales, and rotations
+  useEffect(() => {
+    // Random distribution of asteroids with varied parameters
     for (let i = 0; i < count; i++) {
-      const angle = Math.random() * Math.PI * 2; // Random angle
-      const distance = radius + Math.random() * 10; // Randomize distance within a range
-      const height = Math.random() * 2 - 1; // Small vertical variation
+      // Distribute within a ring (not just a circle)
+      const theta = Math.random() * Math.PI * 2;
+      const ringWidth = radius * 0.3;
+      const distance = radius - ringWidth / 2 + Math.random() * ringWidth;
 
-      const x = Math.cos(angle) * distance;
-      const y = height;
-      const z = Math.sin(angle) * distance;
+      // Slightly varied height for 3D effect
+      const verticalVariance = Math.random() * radius * 0.1 - radius * 0.05;
 
-      posArray.push(x, y, z);
+      // Position
+      const x = Math.cos(theta) * distance;
+      const y = verticalVariance;
+      const z = Math.sin(theta) * distance;
+
+      // Random scale (asteroid size)
+      const scale = Math.random() * 0.5 + 0.2;
+      scales[i] = scale;
+
+      // Random rotation
+      rotations[i * 3] = Math.random() * Math.PI * 2;
+      rotations[i * 3 + 1] = Math.random() * Math.PI * 2;
+      rotations[i * 3 + 2] = Math.random() * Math.PI * 2;
+
+      // Orbital parameters
+      orbitalSpeeds[i] = (Math.random() * 0.02 + 0.005) * (Math.random() > 0.5 ? 1 : -1);
+      orbitalAngles[i] = theta;
+
+      // Set position and scale
+      dummy.position.set(x, y, z);
+      dummy.scale.set(scale, scale, scale);
+      dummy.updateMatrix();
+      instancedMeshRef.current.setMatrixAt(i, dummy.matrix);
     }
-    return new Float32Array(posArray);
-  }, [radius, count]);
+
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+  }, [count, radius, scales, rotations, orbitalSpeeds, orbitalAngles]);
+
+  // Animate asteroids
+  useFrame((state, delta) => {
+    if (!instancedMeshRef.current) return;
+
+    // Update each asteroid's position and rotation
+    for (let i = 0; i < count; i++) {
+      // Update orbital angle
+      orbitalAngles[i] += orbitalSpeeds[i] * delta;
+
+      // Calculate new position
+      const distance = radius - (radius * 0.15) + (radius * 0.3) * (i % 10) / 10;
+      const x = Math.cos(orbitalAngles[i]) * distance;
+      const z = Math.sin(orbitalAngles[i]) * distance;
+
+      // Get vertical position (y)
+      const verticalCycle = Math.sin(orbitalAngles[i] * 3 + i * 0.1) * radius * 0.05;
+
+      // Update rotation
+      rotations[i * 3] += delta * 0.1 * (i % 3 + 1);
+      rotations[i * 3 + 1] += delta * 0.2 * ((i + 1) % 3 + 1);
+
+      // Update matrix
+      dummy.position.set(x, verticalCycle, z);
+      dummy.scale.set(scales[i], scales[i], scales[i]);
+      dummy.rotation.set(rotations[i * 3], rotations[i * 3 + 1], rotations[i * 3 + 2]);
+      dummy.updateMatrix();
+      instancedMeshRef.current.setMatrixAt(i, dummy.matrix);
+    }
+
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true;
+  });
 
   return (
-    <points>
-      <bufferGeometry>
-        <bufferAttribute
-          attach="attributes-position"
-          array={positions}
-          count={positions.length / 3}
-          itemSize={3}
-        />
-      </bufferGeometry>
-      <pointsMaterial size={0.6} color="grey" transparent opacity={0.8} />
-    </points>
+    <group ref={asteroidGroup}>
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[null, null, count]}
+        castShadow
+        receiveShadow
+      >
+        <dodecahedronGeometry args={[1, 1]} />
+        <meshMatcapMaterial matcap={matcap} roughness={0.6} />
+      </instancedMesh>
+    </group>
   );
 };
 
@@ -578,6 +908,11 @@ function SolarSystem() {
         const angle = clock.elapsedTime * planet.orbitSpeed;
         planetMesh.position.x = Math.cos(angle) * planet.distance;
         planetMesh.position.z = Math.sin(angle) * planet.distance;
+
+        // Update time uniform for glass planet material
+        if (planetMesh.children[0] && planetMesh.children[0].material) {
+          planetMesh.children[0].material.time = clock.elapsedTime;
+        }
       }
     });
   });
@@ -643,17 +978,30 @@ function SolarSystem() {
         <group key={planet.name}>
           <mesh>
             <sphereGeometry args={[planet.size, 32, 32]} />
-            <meshStandardMaterial emissive={planet.color} color={planet.color} />
+            <glassPlanetMaterial
+              color={new THREE.Color(planet.color)}
+              glowColor={new THREE.Color(planet.color)}
+              glowIntensity={0.8}
+              transmission={0.9}
+              thickness={planet.size * 2}
+              envMapIntensity={2.5}
+              roughness={0.1}
+              clearcoat={1.0}
+              time={0}
+            />
           </mesh>
           {/* Saturn ring if needed */}
           {planet.ring && (
             <mesh rotation={[Math.PI / 2, 0, 0]}>
               <ringGeometry args={[planet.size + 2, planet.size + 5, 64, 8]} />
-              <meshBasicMaterial
-                color="gray"
+              <meshPhysicalMaterial
+                color="#aaaaff"
                 side={THREE.DoubleSide}
                 transparent
-                opacity={0.6}
+                transmission={0.9}
+                thickness={1}
+                roughness={0.1}
+                opacity={0.8}
               />
             </mesh>
           )}
@@ -858,6 +1206,26 @@ export const App = () => {
     };
   }, []);
 
+  // Dynamic settings with Leva controls panel (optional UI for debugging)
+  const {
+    timeSpeed,
+    enableBloom,
+    starIntensity,
+    musicVolume,
+    ambientLightIntensity,
+    showPerformanceStats
+  } = useControls({
+    timeSpeed: { value: 1, min: 0.1, max: 5, step: 0.1 },
+    enableBloom: true,
+    starIntensity: { value: 1.5, min: 0.1, max: 3, step: 0.1 },
+    musicVolume: { value: 0.5, min: 0, max: 1, step: 0.1 },
+    ambientLightIntensity: { value: 0.2, min: 0, max: 1, step: 0.1 },
+    showPerformanceStats: false
+  });
+
+  // Performance management
+  const [dpr, setDpr] = useState(1.5);
+
   return (
     <div
       ref={wrapperRef}
@@ -865,109 +1233,148 @@ export const App = () => {
     >
       <Canvas
         shadows
-        gl={{ antialias: false }}
-        dpr={[1, 1.5]}
-        camera={{ position: [0, 0, 300], fov: 35, near: 1, far: 4000 }} // Increase far plane
+        gl={{
+          antialias: false,
+          powerPreference: "high-performance",
+          stencil: false,
+          alpha: false
+        }}
+        dpr={dpr} // Controlled by PerformanceMonitor
+        camera={{ position: [0, 0, 300], fov: 35, near: 1, far: 4000 }}
       >
-        <Suspense fallback={<LoadingScreen />}>
-        <OrbitControls />
-        {/* Lighting Setup */}
-        <ambientLight intensity={0.2} color="#ffffff" /> {/* Subtle ambient light */}
-        <color attach="background" args={["#000022"]} /> {/* Dark Blue Background */}
-        <spotLight
-          intensity={1}
-          angle={0.2}
-          penumbra={1}
-          position={[100, 100, 100]}
-          castShadow
-          shadow-mapSize={[2048, 2048]} // High-quality shadows
-          color="#ffffff"
-        />
-        <directionalLight
-          intensity={0.5}
-          position={[-50, 50, 50]}
-          castShadow
-          color="#ffffff"
-        />
+        <PerformanceMonitor
+          onIncline={() => setDpr(Math.min(2, dpr + 0.5))}
+          onDecline={() => setDpr(Math.max(0.75, dpr - 0.5))}
+        >
+          <Suspense fallback={<LoadingScreen />}>
+            <AdaptiveDpr pixelated />
+            <AdaptiveEvents />
 
-        {/* Milky Way Background */}
-        <MilkyWay />
+            <OrbitControls
+              enablePan={true}
+              enableZoom={true}
+              minDistance={50}
+              maxDistance={1000}
+              zoomSpeed={2.5}
+              rotateSpeed={0.4}
+              panSpeed={0.8}
+              mouseButtons={{
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+              }}
+            />
 
-        {/* Starfield */}
-        <Starfield />
+            {/* Enhanced Lighting Setup */}
+            <ambientLight intensity={ambientLightIntensity} color="#ffffff" />
+            <color attach="background" args={["#000000"]} />
+            <spotLight
+              intensity={1}
+              angle={0.2}
+              penumbra={1}
+              position={[100, 100, 100]}
+              castShadow
+              shadow-mapSize={[2048, 2048]}
+              color="#ffffff"
+            />
+            <directionalLight
+              intensity={0.5}
+              position={[-50, 50, 50]}
+              castShadow
+              color="#ffffff"
+            />
 
-        {/* Nebulae */}
-        <Nebulae />
+            {/* Stars with enhanced parameters */}
+            <Stars
+              radius={1000}
+              depth={400}
+              count={800}
+              factor={2.0}
+              fade
+              speed={1}
+            />
 
-        {/* A bigger universe (stars) orbiting around the main sun */}
-        <BiggerUniverse starCount={2000} maxRadius={2000} orbitSpeed={0.0001} />
+            {/* Immersive Audio */}
+            <SoundScape volume={musicVolume} />
 
-        {/* Asteroid Belt */}
-        <AsteroidBelt radius={70} count={5000} />
+            {/* Enhanced Background Elements */}
+            <GalaxyCluster />
+            <MilkyWay />
+            <Starfield intensity={starIntensity} />
+            <Nebulae enhanced={true} />
+            <SpaceDust />
+            <SpiralGalaxy position={[-500, 800, -500]} radius={4000} numStars={35000} numArms={7} />
 
-        {/* Black Sun */}
-        <BlackSun position={[0, 0, 0]} radius={10} />
+            {/* Cosmic elements */}
+            <BiggerUniverse starCount={600} maxRadius={2000} orbitSpeed={0.0001 * timeSpeed} />
+            <AsteroidBelt radius={70} count={1000} />
+            <BlackSun position={[0, 0, 0]} radius={10} />
+            <SpaceDebris />
+            <SolarSystem />
+            <CelestialBridge startPoint={[-350, 50, -300]} endPoint={[350, 100, -400]} width={20} />
+            <WormholePortal position={[500, 100, -200]} />
+            <BlackHole position={[-400, -300, -100]} size={30} />
+            <SpaceStation position={[150, 30, 100]} size={30} />
+            <CrystalFormation position={[300, -100, -100]} />
+            <Supernova />
 
-        {/* Saturn (example big ones placed around) */}
-        <Saturn position={[300, 0, 20]} radius={50} ringRadius={75} />
-        <Saturn position={[-120, 0, 0]} radius={15} ringRadius={25} />
-        <Saturn position={[0, 120, 0]} radius={15} ringRadius={25} />
+            <CosmicPortal position={[200, -100, -150]} radius={25} />
+            <GalacticRadar position={[0, -100, 200]} />
 
-        {/* Solar System (classic Sun + Planets) */}
-        <SolarSystem />
+            {/* Giant Alien Character and Dancing Robot - the biggest objects in the universe */}
+            <AlienCharacter position={[0, -200, -2500]} scale={250} />
+            <DancingRobot position={[500, 0, -300]} scale={40} />
+            <ComputerPC position={[-550, 0, 250]} scale={50} />
 
-        {/* Physics World for bouncing spheres */}
-        <Physics gravity={[0, 0, 0]} iterations={20}>
-          <Spheres
-            exclusionZones={[
-              { center: [200, 0, 0], minDistance: 60 }, // Purple Planet
-              { center: [-200, 0, 0], minDistance: 60 }, // Blue Planet
-              { center: [0, 200, 0], minDistance: 60 }, // Green Planet
-              { center: [120, 0, 0], minDistance: 60 }, // Saturn 1
-              { center: [-120, 0, 0], minDistance: 60 }, // Saturn 2
-              { center: [0, 120, 0], minDistance: 60 } // Saturn 3
-            ]}
-          />
-          {/* Pointer */}
-          <Pointer />
-        </Physics>
+            {/* Enhanced animation elements */}
+            <Comets density={0.4} />
+            <ShootingStars count={300} speed={0.5} spread={800} />
 
-        {/* Comets */}
-        <Comets />
+            {/* Environment setup */}
+            <Environment preset="night" />
+            <BakeShadows />
+            <Preload all />
 
-        {/* Always present shooting stars */}
-        <ShootingStars count={6} speed={0.5} spread={800} />
+            {/* Enhanced Post-processing Effects */}
+            <EffectComposer multisampling={8}>
+              {/* Bloom completely disabled to prevent flashing */}
 
-        {/* Environment Setup */}
-        <Environment preset="night" /> {/* Night preset for appropriate reflections */}
+              {/* Only keep minimal effects */}
+              <Vignette
+                eskil={false}
+                offset={0.1}
+                darkness={0.3}
+                blendFunction={BlendFunction.NORMAL}
+              />
 
-        {/* Post-processing Effects */}
-        <EffectComposer disableNormalPass multisampling={0}>
-          <SSAO
-            samples={31}
-            radius={200}
-            intensity={2000}
-            luminanceInfluence={0.5}
-            color="#000000"
-          />
-          <Bloom mipmapBlur levels={7} intensity={1.5} />
-          <SMAA />
-        </EffectComposer>
+              <SMAA />
+            </EffectComposer>
 
-        {/* Logo Planets */}
-        <LogoPlanets />
-        </Suspense>
+            {/* Interactive Elements */}
+            <LogoPlanets />
+
+            {/* Display FPS counter if enabled */}
+            {showPerformanceStats && <Stats showPanel={0} className="stats" />}
+          </Suspense>
+        </PerformanceMonitor>
       </Canvas>
 
-      {/* Popup Component */}
-      {currentPopup && <Popup message={currentPopup} onClose={handleClosePopup} />}
+      {/* UI Elements */}
+      {currentPopup && (
+        <Popup
+          message={currentPopup.text}
+          type={currentPopup.type}
+          action={currentPopup.action}
+          highlight={currentPopup.highlight}
+          onClose={handleClosePopup}
+        />
+      )}
 
-      {/* Optional: Display Canvas Dimensions */}
-      <div
-        style={{ position: "absolute", top: 200, left: 200, color: "white" }}
-      >
-        {/* Example: Width: {dimensions.width}, Height: {dimensions.height} */}
-      </div>
+      {/* Control Panel for Mobile Users */}
+      <ControlPanel />
+
+      {/* Time Controls UI Outside Canvas */}
+      <TimeControls />
     </div>
   );
 };
