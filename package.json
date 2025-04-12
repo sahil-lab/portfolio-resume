@@ -17,6 +17,7 @@
     "@react-three/postprocessing": "^2.16.7",
     "@react-three/rapier": "^1.5.0",
     "@types/three": "^0.152.1",
+    "babel-plugin-glsl": "^1.0.0",
     "babel-preset-react-app": "^10.0.1",
     "dat.gui": "^0.7.9",
     "framer-motion": "^12.0.0",
