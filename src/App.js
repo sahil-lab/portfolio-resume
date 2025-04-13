@@ -163,6 +163,9 @@ const popupMessages = [
   }
 ];
 
+// Export orbitControlsRef for use in SpaceshipControls
+export const orbitControlsRef = React.createRef();
+
 /* ----------------------------------------------------------------------------------
   1. CustomOutlines component for rendering outlines around objects
 ---------------------------------------------------------------------------------- */
@@ -1251,6 +1254,7 @@ export const App = () => {
             <AdaptiveEvents />
 
             <OrbitControls
+              ref={orbitControlsRef}
               enablePan={true}
               enableZoom={true}
               minDistance={50}
