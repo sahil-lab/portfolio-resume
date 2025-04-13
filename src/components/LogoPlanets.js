@@ -16,6 +16,7 @@ import React, {
   useRef,
   useState,
   Suspense,
+  useCallback,
 } from "react";
 import * as THREE from "three";
 
@@ -26,17 +27,21 @@ import linkedinLogo from '../assets/linkedin.png';
 import mediumLogo from '../assets/medium.png';
 import resumeLogo from '../assets/resume.png';
 import whatsappLogo from '../assets/whatsapp.png';
-import { CustomOutlines } from "../App"; 
+import { CustomOutlines } from "../App";
 
 // Import the music files
 import musicGLB from '../assets/music.glb'; // Ensure the path is correct
 import musicFile from '../assets/music.mp3'; // Ensure the path is correct
 
 // Import a custom font (ensure the font file is in the specified path)
-import customFont from '../assets/fonts/Roboto-Bold.ttf'; 
+import customFont from '../assets/fonts/Roboto-Bold.ttf';
 
 // Import the spaceship GLB model
 import spaceshipModel from '../assets/spaceship.glb'; // Adjust the path as necessary
+
+// Import the new spaceship controls for the spaceship model
+import SpaceshipControls from './SpaceshipControls';
+import { useSpaceshipControls } from './SpaceshipControls';
 
 // Helper function to trigger link opening or download
 const triggerLink = (link, download = false) => {
@@ -172,7 +177,7 @@ const LogoPlanet = ({ logo, position, size, link, emissiveColor, label, download
         transparent={true}
         thickness={0.02}
       />
-      
+
       {/* Always render the label text and control visibility via opacity */}
       <Text
         ref={textRef}
@@ -303,7 +308,7 @@ const MusicPlanet = ({ position, size, emissiveColor, label }) => {
         transparent={true}
         thickness={0.02}
       />
-      
+
       {/* Label Text */}
       <Text
         ref={textRef}
@@ -405,8 +410,8 @@ const LogoPlanets = () => {
     { logo: gmailLogo, link: "mailto:sahil.aps2k12@gmail.com", label: "Gmail" },
     { logo: linkedinLogo, link: "https://www.linkedin.com/in/sahil-upadhyay-2921b5127/", label: "LinkedIn" },
     { logo: mediumLogo, link: "https://medium.com/@sahilupadhyay.work", label: "Medium" },
-    { 
-      logo: resumeLogo, 
+    {
+      logo: resumeLogo,
       link: "https://raw.githubusercontent.com/sahil-lab/portfolio-resume/main/src/assets/resume.pdf", // Updated raw GitHub link
       label: "Resume",
       download: true // Flag indicating download action
@@ -501,241 +506,339 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
   const textRef = useRef();
   const { camera, gl, scene: threeScene } = useThree();
 
+  // Get controls from the custom hook
+  const {
+    keys,
+    controlsActive,
+    cameraMode,
+    activateSpaceshipControls,
+    deactivateSpaceshipControls
+  } = useSpaceshipControls();
+
   // Movement state using refs for mutable values
   const velocity = useRef(new THREE.Vector3());
-  const acceleration = 0.2;
-  const deceleration = 0.95;
-  const maxSpeed = 5;
+  const acceleration = controlsActive ? 0.4 : 0.2; // Double acceleration when in FPV mode
+  const deceleration = 0.92; // Slightly increased deceleration for better control
+  const maxSpeed = controlsActive ? 8 : 5; // Higher max speed in FPV mode
 
-  // Controls state
-  const keys = useRef({
-    w: false,
-    a: false,
-    s: false,
-    d: false,
-    ArrowUp: false,
-    ArrowDown: false,
-    q: false,
-    e: false
-  });
+  // Offset for third-person camera
+  const thirdPersonOffset = new THREE.Vector3(0, 10, 30);
+
+  // MODIFIED: Make toggle function more robust
+  const toggleSpaceshipView = useCallback((e) => {
+    if (e) e.stopPropagation(); // Handle both event and non-event calls
+
+    console.log("toggleSpaceshipView called, current state:", { controlsActive });
+
+    if (!spaceshipRef.current) {
+      console.warn("Cannot toggle spaceship view: spaceship reference is not available");
+      return;
+    }
+
+    // Force re-check of current state before making a decision
+    if (controlsActive) {
+      console.log("Currently active, will exit ship view");
+      deactivateSpaceshipControls();
+
+      // Extra check for stuck state
+      setTimeout(() => {
+        if (controlsActive) {
+          console.log("State appears stuck, forcing exit again");
+          deactivateSpaceshipControls();
+        }
+      }, 100);
+    } else {
+      console.log("Currently inactive, will enter ship view");
+      activateSpaceshipControls(spaceshipRef);
+    }
+  }, [controlsActive, activateSpaceshipControls, deactivateSpaceshipControls]);
+
+  // Split the functionality to allow direct entry without toggling
+  const enterShipView = useCallback(() => {
+    if (controlsActive) return; // Already in ship view
+
+    if (!spaceshipRef.current) {
+      console.warn("Cannot enter ship view: spaceship reference is not available");
+      return;
+    }
+
+    activateSpaceshipControls(spaceshipRef);
+  }, [controlsActive, activateSpaceshipControls]);
+
+  const exitShipView = useCallback(() => {
+    console.log("exitShipView called, controlsActive:", controlsActive);
+
+    if (!controlsActive) {
+      console.log("Not in ship view, nothing to exit");
+      return; // Not in ship view
+    }
+
+    console.log("Exiting ship view, calling deactivateSpaceshipControls");
+    deactivateSpaceshipControls();
+  }, [controlsActive, deactivateSpaceshipControls]);
+
+  // Make all functions accessible via window for the on-screen controls
+  useEffect(() => {
+    window.toggleSpaceshipView = toggleSpaceshipView;
+    window.enterShipView = enterShipView;
+    window.exitShipView = exitShipView;
+    return () => {
+      delete window.toggleSpaceshipView;
+      delete window.enterShipView;
+      delete window.exitShipView;
+    };
+  }, [toggleSpaceshipView, enterShipView, exitShipView]);
 
   // Collision flags to prevent multiple triggers
   const totalCollisions = logoPositions.length + 1; // +1 for MusicPlanet
   const collisionFlags = useRef(new Array(totalCollisions).fill(false));
 
-  // Handle keydown and keyup events
-  useEffect(() => {
-    const handleKeyDown = (e) => {
-      const key = e.key;
-      if (keys.current.hasOwnProperty(key)) {
-        keys.current[key] = true;
-      }
-    };
-    const handleKeyUp = (e) => {
-      const key = e.key;
-      if (keys.current.hasOwnProperty(key)) {
-        keys.current[key] = false;
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    window.addEventListener('keyup', handleKeyUp);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-      window.removeEventListener('keyup', handleKeyUp);
-    };
-  }, []);
-
   // Helper function to get rotation quaternion based on keys
-  const getRotationQuaternion = () => {
+  const getRotationQuaternion = useCallback(() => {
     const quaternion = new THREE.Quaternion();
     const euler = new THREE.Euler(0, 0, 0, 'XYZ');
 
-    if (keys.current.a) euler.y += 0.02; // Rotate left around Y-axis
-    if (keys.current.d) euler.y -= 0.02; // Rotate right around Y-axis
-    if (keys.current.q) euler.z += 0.02; // Roll left
-    if (keys.current.e) euler.z -= 0.02; // Roll right
-    if (keys.current.ArrowUp) euler.x += 0.02; // Pitch up
-    if (keys.current.ArrowDown) euler.x -= 0.02; // Pitch down
+    // Increase rotation speed when in FPV mode for better control feel
+    const rotationSpeed = controlsActive ? 0.03 : 0.02;
+
+    if (keys.current.a) euler.y += rotationSpeed; // Rotate left around Y-axis
+    if (keys.current.d) euler.y -= rotationSpeed; // Rotate right around Y-axis
+    if (keys.current.q) euler.z += rotationSpeed * 0.7; // Roll left (reduced for comfort)
+    if (keys.current.e) euler.z -= rotationSpeed * 0.7; // Roll right (reduced for comfort)
+    if (keys.current.ArrowUp) euler.x += rotationSpeed; // Pitch up
+    if (keys.current.ArrowDown) euler.x -= rotationSpeed; // Pitch down
 
     quaternion.setFromEuler(euler);
     return quaternion;
-  };
+  }, [controlsActive, keys]);
 
   // Update spaceship movement and orientation
   useFrame((state, delta) => {
-    if (!spaceshipRef.current) return;
+    if (!spaceshipRef.current || !delta || delta > 0.5) return; // Skip frame if delta is too large or spaceship isn't ready
 
-    // Handle rotation
-    const rotationQuaternion = getRotationQuaternion();
-    spaceshipRef.current.quaternion.multiplyQuaternions(rotationQuaternion, spaceshipRef.current.quaternion);
+    try {
+      // Handle rotation - apply more rotation when in FPV for better control
+      const rotationQuaternion = getRotationQuaternion();
+      spaceshipRef.current.quaternion.multiplyQuaternions(rotationQuaternion, spaceshipRef.current.quaternion);
 
-    // Handle movement direction (forward/backward)
-    let direction = new THREE.Vector3();
+      // Handle movement direction (forward/backward)
+      let direction = new THREE.Vector3();
 
-    if (keys.current.w) direction.z -= 1; // Forward
-    if (keys.current.s) direction.z += 1; // Backward
+      // Check key states for movement
+      if (keys.current.w) {
+        direction.z -= 1; // Forward
+      }
+      if (keys.current.s) {
+        direction.z += 1; // Backward
+      }
 
-    if (direction.length() > 0) {
-      direction.normalize();
-      direction.applyQuaternion(spaceshipRef.current.quaternion);
-      direction.multiplyScalar(acceleration);
-      velocity.current.add(direction);
-      velocity.current.clampLength(0, maxSpeed);
-    } else {
-      // Apply deceleration when no keys are pressed
-      velocity.current.multiplyScalar(deceleration);
-    }
+      // Apply movement if there's any direction input
+      if (direction.length() > 0) {
+        direction.normalize();
+        direction.applyQuaternion(spaceshipRef.current.quaternion);
 
-    // Update spaceship position
-    spaceshipRef.current.position.add(velocity.current.clone());
+        // Get current speed - for smoother acceleration
+        const currentSpeed = velocity.current.length();
 
-    // Update "Let's Go" text position and make it rotate independently
-    if (textRef.current && spaceshipRef.current) {
-      const offset = new THREE.Vector3(0, 10, 0); // Adjust as needed
-      textRef.current.position.copy(spaceshipRef.current.position).add(offset);
+        // Apply acceleration based on current mode
+        const effectiveAcceleration = acceleration * (1 - currentSpeed / maxSpeed * 0.5);
+        direction.multiplyScalar(effectiveAcceleration);
 
-      // Continuous rotation
-      textRef.current.rotation.y += 0.02; // Adjust rotation speed as desired
-    }
+        velocity.current.add(direction);
 
-    // Collision detection with precise contact
-    // Iterate over logoPositions and MusicPlanet
-    logoPositions.forEach((pos, index) => {
-      const planetPosition = new THREE.Vector3(...pos);
-      const spaceshipPosition = spaceshipRef.current.position.clone();
-
-      // Define collision radii based on scales
-      const spaceshipRadius = 10; // Adjusted based on spaceship scale (10)
-      const planetRadius = 5.5;    // size=5, scaled by 1.1 on hover
-
-      const collisionDistance = spaceshipRadius + planetRadius; // 15.5
-
-      const distance = spaceshipPosition.distanceTo(planetPosition);
-
-      if (distance <= collisionDistance) {
-        if (!collisionFlags.current[index]) {
-          // Trigger the link or download
-          triggerLink(logos[index].link, logos[index].download || false);
-          // Set the flag to true to prevent multiple triggers
-          collisionFlags.current[index] = true;
-        }
+        // Apply velocity limits based on camera mode
+        velocity.current.clampLength(0, maxSpeed);
       } else {
-        if (collisionFlags.current[index]) {
-          // Reset the flag when no longer colliding
-          collisionFlags.current[index] = false;
+        // Apply deceleration when no keys are pressed
+        velocity.current.multiplyScalar(deceleration);
+
+        // Stop completely if very slow to avoid floating
+        if (velocity.current.length() < 0.01) {
+          velocity.current.set(0, 0, 0);
         }
       }
-    });
 
-    // Handle collision with MusicPlanet
-    const musicPlanetIndex = logoPositions.length; // Last index
-    const musicPlanetPosition = new THREE.Vector3(0, -100, 0); // Same as MusicPlanet's position
-    const spaceshipPosition = spaceshipRef.current.position.clone();
-
-    const spaceshipRadius = 10; // Adjusted based on spaceship scale
-    const musicPlanetScale = 100; // size=5 scaled by 20
-    const musicPlanetRadius = musicPlanetScale / 2; // 50
-
-    const collisionDistanceMusic = spaceshipRadius + musicPlanetRadius; // 60
-
-    const distanceToMusicPlanet = spaceshipPosition.distanceTo(musicPlanetPosition);
-
-    if (distanceToMusicPlanet <= collisionDistanceMusic) {
-      if (!collisionFlags.current[musicPlanetIndex]) {
-        // Automatically play music if not already playing
-        const musicPlanet = threeScene.getObjectByName('MusicPlanet'); // Ensure MusicPlanet has this name
-        if (musicPlanet) {
-          const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
-          if (audio && !audio.isPlaying) {
-            audio.play();
-            // Optionally, you can set a state or ref here if needed
-          }
-        }
-        // Set the flag to true to prevent multiple triggers
-        collisionFlags.current[musicPlanetIndex] = true;
+      // IMPORTANT: Update spaceship position first
+      if (velocity.current.length() > 0) {
+        spaceshipRef.current.position.add(velocity.current.clone());
       }
-    } else {
-      if (collisionFlags.current[musicPlanetIndex]) {
-        // Optionally stop the music when no longer colliding
-        const musicPlanet = threeScene.getObjectByName('MusicPlanet');
-        if (musicPlanet) {
-          const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
-          if (audio && audio.isPlaying) {
-            audio.stop();
-            // Optionally, you can set a state or ref here if needed
-          }
-        }
-        // Reset the flag when no longer colliding
-        collisionFlags.current[musicPlanetIndex] = false;
+
+      // CRITICAL: Handle camera positioning immediately after updating ship position
+      if (controlsActive && cameraMode === 'fps' && camera) {
+        // Get latest ship position and rotation
+        const shipPosition = spaceshipRef.current.position.clone();
+        const shipQuaternion = spaceshipRef.current.quaternion.clone();
+
+        // Create a fixed cockpit offset vector (adjust these values for best view)
+        const offsetVector = new THREE.Vector3(0, 2.5, -0.5);
+
+        // Apply ship's rotation to the offset
+        offsetVector.applyQuaternion(shipQuaternion);
+
+        // Position camera at ship position + rotated offset
+        camera.position.copy(shipPosition).add(offsetVector);
+
+        // Match camera rotation to ship rotation exactly
+        camera.quaternion.copy(shipQuaternion);
       }
-    }
 
-    // Booster particles
-    if (velocity.current.length() > 0.1 && spaceshipRef.current) {
-      // Emit particles opposite to the direction of movement
-      const direction = velocity.current.clone().normalize().multiplyScalar(-1);
-      const boosterOffsetY = 1; // Adjust based on spaceship size
+      // Update "Let's Go" text position
+      if (textRef.current && spaceshipRef.current) {
+        const offset = new THREE.Vector3(0, 10, 0);
+        textRef.current.position.copy(spaceshipRef.current.position).add(offset);
+        textRef.current.rotation.y += 0.02;
+      }
 
-      const particleLeft = new THREE.Vector3(
-        spaceshipRef.current.position.x - 2,
-        spaceshipRef.current.position.y - boosterOffsetY,
-        spaceshipRef.current.position.z
-      ).add(direction.clone().multiplyScalar(2));
+      // Collision detection with precise contact if enabled
+      if (logoPositions && logos) {
+        // Iterate over logoPositions and MusicPlanet
+        logoPositions.forEach((pos, index) => {
+          if (!pos || !Array.isArray(pos) || !spaceshipRef.current) return;
 
-      const particleRight = new THREE.Vector3(
-        spaceshipRef.current.position.x + 2,
-        spaceshipRef.current.position.y - boosterOffsetY,
-        spaceshipRef.current.position.z
-      ).add(direction.clone().multiplyScalar(2));
+          const planetPosition = new THREE.Vector3(...pos);
+          const spaceshipPosition = spaceshipRef.current.position.clone();
 
-      // Create particles
-      const particleGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Original size
-      const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 1 });
-      const particleLeftMesh = new THREE.Mesh(particleGeometry, particleMaterial);
-      const particleRightMesh = new THREE.Mesh(particleGeometry, particleMaterial);
-      particleLeftMesh.position.copy(particleLeft);
-      particleRightMesh.position.copy(particleRight);
-      particleLeftMesh.velocity = direction.clone().multiplyScalar(0.5);
-      particleRightMesh.velocity = direction.clone().multiplyScalar(0.5);
-      threeScene.add(particleLeftMesh);
-      threeScene.add(particleRightMesh);
+          // Define collision radii based on scales
+          const spaceshipRadius = 10; // Adjusted based on spaceship scale (10)
+          const planetRadius = 5.5;    // size=5, scaled by 1.1 on hover
 
-      // Animate particles
-      const animateParticle = () => {
-        if (particleLeftMesh && particleRightMesh) {
-          particleLeftMesh.position.add(particleLeftMesh.velocity);
-          particleRightMesh.position.add(particleRightMesh.velocity);
-          // Fade out
-          particleLeftMesh.material.opacity -= 0.02;
-          particleRightMesh.material.opacity -= 0.02;
-          if (particleLeftMesh.material.opacity <= 0 || particleRightMesh.material.opacity <= 0) {
-            threeScene.remove(particleLeftMesh);
-            threeScene.remove(particleRightMesh);
+          const collisionDistance = spaceshipRadius + planetRadius; // 15.5
+
+          const distance = spaceshipPosition.distanceTo(planetPosition);
+
+          if (distance <= collisionDistance) {
+            if (!collisionFlags.current[index]) {
+              // Trigger the link or download
+              if (logos[index] && logos[index].link) {
+                triggerLink(logos[index].link, logos[index].download || false);
+                // Set the flag to true to prevent multiple triggers
+                collisionFlags.current[index] = true;
+              }
+            }
           } else {
-            requestAnimationFrame(animateParticle);
+            if (collisionFlags.current[index]) {
+              // Reset the flag when no longer colliding
+              collisionFlags.current[index] = false;
+            }
+          }
+        });
+
+        // Handle collision with MusicPlanet if threeScene is available
+        if (threeScene) {
+          const musicPlanetIndex = logoPositions.length; // Last index
+          const musicPlanetPosition = new THREE.Vector3(0, -100, 0); // Same as MusicPlanet's position
+          const spaceshipPosition = spaceshipRef.current.position.clone();
+
+          const spaceshipRadius = 10; // Adjusted based on spaceship scale
+          const musicPlanetScale = 100; // size=5 scaled by 20
+          const musicPlanetRadius = musicPlanetScale / 2; // 50
+
+          const collisionDistanceMusic = spaceshipRadius + musicPlanetRadius; // 60
+
+          const distanceToMusicPlanet = spaceshipPosition.distanceTo(musicPlanetPosition);
+
+          if (distanceToMusicPlanet <= collisionDistanceMusic) {
+            if (!collisionFlags.current[musicPlanetIndex]) {
+              // Automatically play music if not already playing
+              const musicPlanet = threeScene.getObjectByName('MusicPlanet'); // Ensure MusicPlanet has this name
+              if (musicPlanet) {
+                const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
+                if (audio && !audio.isPlaying) {
+                  audio.play();
+                }
+              }
+              // Set the flag to true to prevent multiple triggers
+              collisionFlags.current[musicPlanetIndex] = true;
+            }
+          } else {
+            if (collisionFlags.current[musicPlanetIndex]) {
+              // Optionally stop the music when no longer colliding
+              const musicPlanet = threeScene.getObjectByName('MusicPlanet');
+              if (musicPlanet) {
+                const audio = musicPlanet.children.find(child => child.type === 'PositionalAudio');
+                if (audio && audio.isPlaying) {
+                  audio.stop();
+                }
+              }
+              // Reset the flag when no longer colliding
+              collisionFlags.current[musicPlanetIndex] = false;
+            }
           }
         }
-      };
-      animateParticle();
+      }
+
+      // Booster particles when moving
+      if (velocity.current.length() > 0.1 && spaceshipRef.current && threeScene) {
+        // Emit particles opposite to the direction of movement
+        const direction = velocity.current.clone().normalize().multiplyScalar(-1);
+        const boosterOffsetY = 1; // Adjust based on spaceship size
+
+        const particleLeft = new THREE.Vector3(
+          spaceshipRef.current.position.x - 2,
+          spaceshipRef.current.position.y - boosterOffsetY,
+          spaceshipRef.current.position.z
+        ).add(direction.clone().multiplyScalar(2));
+
+        const particleRight = new THREE.Vector3(
+          spaceshipRef.current.position.x + 2,
+          spaceshipRef.current.position.y - boosterOffsetY,
+          spaceshipRef.current.position.z
+        ).add(direction.clone().multiplyScalar(2));
+
+        // Create particles
+        const particleGeometry = new THREE.SphereGeometry(0.2, 8, 8); // Original size
+        const particleMaterial = new THREE.MeshBasicMaterial({ color: 0xff4500, transparent: true, opacity: 1 });
+        const particleLeftMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+        const particleRightMesh = new THREE.Mesh(particleGeometry, particleMaterial);
+        particleLeftMesh.position.copy(particleLeft);
+        particleRightMesh.position.copy(particleRight);
+        particleLeftMesh.velocity = direction.clone().multiplyScalar(0.5);
+        particleRightMesh.velocity = direction.clone().multiplyScalar(0.5);
+        threeScene.add(particleLeftMesh);
+        threeScene.add(particleRightMesh);
+
+        // Animate particles
+        const animateParticle = () => {
+          if (particleLeftMesh && particleRightMesh) {
+            particleLeftMesh.position.add(particleLeftMesh.velocity);
+            particleRightMesh.position.add(particleRightMesh.velocity);
+            // Fade out
+            particleLeftMesh.material.opacity -= 0.02;
+            particleRightMesh.material.opacity -= 0.02;
+            if (particleLeftMesh.material.opacity <= 0 || particleRightMesh.material.opacity <= 0) {
+              threeScene.remove(particleLeftMesh);
+              threeScene.remove(particleRightMesh);
+            } else {
+              requestAnimationFrame(animateParticle);
+            }
+          }
+        };
+        animateParticle();
+      }
+    } catch (error) {
+      console.error("Error in spaceship update:", error);
     }
   });
 
   return (
     <>
-      {/* Spaceship */}
-      <primitive
-        ref={spaceshipRef}
-        object={scene}
-        position={[0, 0, 0]}
-        scale={[10, 10, 10]} // Adjusted scale for accurate collision detection
-        castShadow
-        receiveShadow
-      />
+      {/* Spaceship - add onClick handler */}
+      {scene && (
+        <primitive
+          ref={spaceshipRef}
+          object={scene}
+          position={[0, 0, 0]}
+          scale={[10, 10, 10]}
+          castShadow
+          receiveShadow
+          onClick={toggleSpaceshipView}
+        />
+      )}
 
       {/* "Let's Go" Text */}
       <Text
         ref={textRef}
-        position={[0, 10, 0]} // Initial position; will be updated in useFrame
+        position={[0, 10, 0]}
         font={customFont}
         fontSize={2}
         color="white"
@@ -746,20 +849,18 @@ const SpaceshipModel = ({ logoPositions, logos }) => {
         material-toneMapped={false}
         emissive="cyan"
         emissiveIntensity={0.5}
-        billboard // <-- Added billboard prop
-        // Smooth transition for opacity
-        onBeforeCompile={(shader) => {
-          shader.fragmentShader = shader.fragmentShader.replace(
-            `#include <alphamap_fragment>`,
-            `
-              #include <alphamap_fragment>
-              diffuseColor.a *= opacity;
-            `
-          );
-        }}
+        billboard
       >
         Let's Go
       </Text>
+
+      {/* Create UI controls outside the Canvas */}
+      <SpaceshipControls
+        spaceshipRef={spaceshipRef}
+        toggleFn={toggleSpaceshipView}
+        enterFn={enterShipView}
+        exitFn={exitShipView}
+      />
     </>
   );
 };
