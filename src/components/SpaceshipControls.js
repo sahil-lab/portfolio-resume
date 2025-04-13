@@ -350,9 +350,9 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
 
         // Common button styles
         const buttonStyle = {
-            width: '50px',
-            height: '50px',
-            borderRadius: '5px',
+            width: '25px',
+            height: '25px',
+            borderRadius: '3px',
             backgroundColor: 'rgba(50, 50, 70, 0.7)',
             backdropFilter: 'blur(5px)',
             color: 'white',
@@ -360,9 +360,9 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             display: 'flex',
             justifyContent: 'center',
             alignItems: 'center',
-            fontSize: '20px',
+            fontSize: '10px',
             cursor: 'pointer',
-            boxShadow: '0 0 5px rgba(0, 100, 255, 0.5)',
+            boxShadow: '0 0 3px rgba(0, 100, 255, 0.5)',
             userSelect: 'none'
         };
 
@@ -383,25 +383,26 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             // Create the container div
             const containerDiv = document.createElement('div');
             containerDiv.style.position = 'fixed';
-            containerDiv.style.bottom = '20px';
-            containerDiv.style.left = '20px';
+            containerDiv.style.bottom = '10px'; // Reduced from 20px
+            containerDiv.style.left = '10px'; // Reduced from 20px
             containerDiv.style.display = 'flex';
             containerDiv.style.flexDirection = 'column';
-            containerDiv.style.gap = '10px';
+            containerDiv.style.gap = '5px'; // Reduced from 10px
             containerDiv.style.zIndex = '1000';
 
             // Create mode toggle buttons
             const toggleButtonsDiv = document.createElement('div');
             toggleButtonsDiv.style.display = 'flex';
             toggleButtonsDiv.style.justifyContent = 'center';
-            toggleButtonsDiv.style.gap = '10px'; // Add gap between buttons
-            toggleButtonsDiv.style.marginBottom = '10px';
+            toggleButtonsDiv.style.gap = '5px'; // Reduced from 10px
+            toggleButtonsDiv.style.marginBottom = '5px'; // Reduced from 10px
 
             // Enter Ship View button (always visible)
             const enterButton = document.createElement('button');
             Object.assign(enterButton.style, buttonStyle);
             enterButton.style.width = 'auto';
-            enterButton.style.padding = '0 15px';
+            enterButton.style.padding = '0 8px'; // Reduced from 15px
+            enterButton.style.height = '20px'; // Added specific height
             enterButton.style.backgroundColor = 'rgba(50, 200, 100, 0.7)'; // Green for enter
             enterButton.innerText = 'Enter Ship View';
 
@@ -427,7 +428,8 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             const exitButton = document.createElement('button');
             Object.assign(exitButton.style, buttonStyle);
             exitButton.style.width = 'auto';
-            exitButton.style.padding = '0 15px';
+            exitButton.style.padding = '0 8px'; // Reduced from 15px
+            exitButton.style.height = '20px'; // Added specific height
             exitButton.style.backgroundColor = 'rgba(255, 100, 100, 0.7)'; // Red for exit
             exitButton.innerText = 'Exit Ship View';
 
@@ -451,10 +453,11 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             const forceExitButton = document.createElement('button');
             Object.assign(forceExitButton.style, buttonStyle);
             forceExitButton.style.width = 'auto';
-            forceExitButton.style.padding = '0 15px';
+            forceExitButton.style.padding = '0 8px'; // Reduced from 15px
+            forceExitButton.style.height = '20px'; // Added specific height
             forceExitButton.style.backgroundColor = 'rgba(255, 50, 50, 0.9)'; // Bright red for emergency
             forceExitButton.innerText = 'Force Exit';
-            forceExitButton.style.marginLeft = '10px';
+            forceExitButton.style.marginLeft = '5px'; // Reduced from 10px
 
             forceExitButton.onclick = (e) => {
                 e.preventDefault();
@@ -471,16 +474,16 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             const controlPadDiv = document.createElement('div');
             controlPadDiv.style.display = 'flex';
             controlPadDiv.style.justifyContent = 'space-between';
-            controlPadDiv.style.width = '300px';
+            controlPadDiv.style.width = '150px'; // Reduced from 300px
 
             // Create directional pad (left side)
             const dpadDiv = document.createElement('div');
             dpadDiv.style.display = 'grid';
             dpadDiv.style.gridTemplateColumns = 'repeat(3, 1fr)';
             dpadDiv.style.gridTemplateRows = 'repeat(3, 1fr)';
-            dpadDiv.style.gap = '5px';
-            dpadDiv.style.width = '160px';
-            dpadDiv.style.height = '160px';
+            dpadDiv.style.gap = '3px'; // Reduced from 5px
+            dpadDiv.style.width = '80px'; // Reduced from 160px
+            dpadDiv.style.height = '80px'; // Reduced from 160px
 
             // Helper function to create a button
             const createButton = (key, symbol, gridColumn, gridRow) => {
@@ -572,7 +575,7 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             const pitchRollDiv = document.createElement('div');
             pitchRollDiv.style.display = 'flex';
             pitchRollDiv.style.flexDirection = 'column';
-            pitchRollDiv.style.gap = '5px';
+            pitchRollDiv.style.gap = '3px'; // Reduced from 5px
 
             // Up arrow for pitch up
             const pitchUpButton = createButton('ArrowUp', '▲', '', '');
@@ -581,7 +584,7 @@ const SpaceshipControls = ({ spaceshipRef, toggleFn, enterFn, exitFn }) => {
             // Roll buttons container
             const rollDiv = document.createElement('div');
             rollDiv.style.display = 'flex';
-            rollDiv.style.gap = '5px';
+            rollDiv.style.gap = '3px'; // Reduced from 5px
 
             // Roll left (q) and right (e) buttons
             const rollLeftButton = createButton('q', '↺', '', '');
